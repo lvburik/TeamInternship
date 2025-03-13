@@ -15,7 +15,7 @@ emis_coeff = 0.9;
 ThermalModel = createpde('thermal', 'transient');
 
 %run the geometry script to create the sample
-Circular_damage
+Load_Geometry
 
 %plot the geometry
 pdegplot(ThermalModel,'FaceLabels','on','FaceAlpha',0.5)
