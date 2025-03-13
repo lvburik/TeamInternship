@@ -1,3 +1,5 @@
 pdeplot3D(ThermalModel,"ColorMapData",thermalresults.Temperature(:,end))
+colormap("gray")
+caxis([22 55])
 view(90, -90)
 zoom(1)
