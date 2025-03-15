@@ -15,7 +15,7 @@ emis_coeff = 0.9;
 ThermalModel = createpde('thermal', 'transient');
 
 %run the geometry script to create the sample
-Load_Geometry(ThermalModel, 'circle');
+Load_Geometry("s")
 
 %plot the geometry
 figure

@@ -1,0 +1,16 @@
+%damage dimension
+length = 0.04;
+offset_x = .0;
+offset_y = .0;
+
+%%TODO (define other parameters)
+x_offset = 0;
+y_offset = 0;
+
+% load damage polyshape
+
+%%TODO (define corners of polyshape)
+damage_x = [0 0 1 1];
+damage_y = [1 0 0 1];
+damage = polyshape(damage_x, damage_y) ;%polyshape defining the damage geometry
+

@@ -12,11 +12,10 @@ function g = Load_Geometry(ThermalModel, shape)
     sample = polyshape(sample_x, sample_y);
     
     % load the damage as a polyshape object
-    switch shape
-        case 'circle'
-            [damage, inner_edges] = Circular_damage;
-        case 'square'
-            [damage, inner_edges] = Square_damage;
+    if shape == 'circle'
+        Circular_damage;
+    elseif shape == 'square'
+        Square_damage;
     end
     
     % Subtract the damage from the sample to create the shape with the hole
