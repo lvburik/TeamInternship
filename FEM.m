@@ -21,6 +21,7 @@ Load_Geometry(ThermalModel, 'triangle');
 figure
 pdegplot(ThermalModel,'FaceLabels','on','FaceAlpha',0.5);
 
+
 %material properties
 thermalProperties(ThermalModel,'ThermalConductivity',conductivity,...
                                'MassDensity',density,...
@@ -38,12 +39,14 @@ thermalBC(ThermalModel,'Face',[1, 2],'HeatFlux',@heatFluxFunction);
 thermalIC(ThermalModel,Ambient_T);
 
 %generate and display mesh
-generateMesh(ThermalModel, Hmax = 0.08);
+
+generateMesh(ThermalModel, Hmax = 0.005);
+
 figure
 pdemesh(ThermalModel)
 
 %%solve
-tlist = 0:.5:600;
+tlist = 0:2:600;
 
 thermalresults = solve(ThermalModel,tlist);
 

@@ -44,6 +44,11 @@ function g = Load_Geometry(ThermalModel, shape)
     extrude(g, d);
     %extrude damaged plate until final thickness
     extrude(g, 1, th-d);
+    
+    mergeCells(g,[1 2]);
+    mergeCells(g,[1 2]);
 end
+
+
 
 
