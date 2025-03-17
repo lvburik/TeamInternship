@@ -17,6 +17,8 @@ function g = Load_Geometry(ThermalModel, shape)
             [damage, inner_edges] = Circular_damage;
         case 'square'
             [damage, inner_edges] = Square_damage;
+        case 'triangle'
+            [damage, inner_edges] = Triangle_damage;
     end
     
     % Subtract the damage from the sample to create the shape with the hole
