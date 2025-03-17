@@ -15,10 +15,11 @@ emis_coeff = 0.9;
 ThermalModel = createpde('thermal', 'transient');
 
 %run the geometry script to create the sample
-Load_Geometry
+Load_Geometry(ThermalModel, 'triangle');
 
 %plot the geometry
-pdegplot(ThermalModel,'FaceLabels','on','FaceAlpha',0.5)
+figure
+pdegplot(ThermalModel,'FaceLabels','on','FaceAlpha',0.5);
 
 
 %material properties
@@ -38,7 +39,9 @@ thermalBC(ThermalModel,'Face',[1, 2],'HeatFlux',@heatFluxFunction);
 thermalIC(ThermalModel,Ambient_T);
 
 %generate and display mesh
+
 generateMesh(ThermalModel, Hmax = 0.005);
+
 figure
 pdemesh(ThermalModel)
 
