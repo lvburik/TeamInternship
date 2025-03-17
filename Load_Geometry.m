@@ -30,3 +30,6 @@ extrude(g, d);
 %extrude damaged plate until final thickness
 extrude(g, 3, th-d);
 
+mergeCells(g,[1 2]);
+mergeCells(g,[1 2]);
+
