@@ -1,4 +1,7 @@
 clear
+%% simulation parameters
+tlist = 0:2:10;
+filename = 'results.csv';
 
 %environment properties
 Ambient_T = 22; %[°C]
@@ -11,7 +14,9 @@ specific_heat = 1200; %[J/°K]
 convex_coeff = 40; %[W/m*°K]
 emis_coeff = 0.9;
 
-%%define the model
+%% set up the simulation
+
+% define the model
 ThermalModel = createpde('thermal', 'transient');
 
 %run the geometry script to create the sample
@@ -40,13 +45,12 @@ thermalIC(ThermalModel,Ambient_T);
 
 %generate and display mesh
 
-generateMesh(ThermalModel, Hmax = 0.005);
+generateMesh(ThermalModel, Hmax = 0.007);
 
 figure
 pdemesh(ThermalModel)
 
-%%solve
-tlist = 0:2:600;
+%% solve the model
 
 thermalresults = solve(ThermalModel,tlist);
 
@@ -62,5 +66,7 @@ function q = heatFluxFunction(region, state)
         q = 0;
     end
 end
+
+Get_results(ThermalModel, tlist, thermalresults, filename)
 
 
