@@ -3,7 +3,7 @@
 function Get_results(ThermalModel, tlist, ThermalResults, filename)
 
     %find all nodes in the XY plane
-    node_IDs = find(ThermalModel.Mesh.Nodes(3, :) == 0)';
+    node_IDs = find(ThermalModel.Mesh.Nodes(3, :) == 0.02)';
 
     %extract all temperature values for these nodes
     TemperatureData = ThermalResults.Temperature(node_IDs, :);
@@ -20,6 +20,12 @@ function Get_results(ThermalModel, tlist, ThermalResults, filename)
 
     %save table
     writetable(DataTable, filename)
+
+    figure;
+    scatter(X, Y, 10, 'filled'); % Small dots, filled markers
+    title('Node Locations in XY Plane');
+    axis equal; % Keep aspect ratio
+    grid on;
 
 end
 
