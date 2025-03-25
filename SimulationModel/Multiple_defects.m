@@ -1,4 +1,4 @@
-function [f, g] = Multiple_defects(model, number_of_defects)
+function labelface_ID = Multiple_defects(model, number_of_defects)
     % Sample dimensions
     L = 0.3;  % Length
     th = 0.05; % Thickness (not used in 2D)
@@ -72,6 +72,8 @@ function [f, g] = Multiple_defects(model, number_of_defects)
     end
     
     model.Geometry = f;
+
+    labelface_ID = nearestFace(f, [-0.999*L/2 0.999*L/2 0]);
 end
 
 

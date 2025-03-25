@@ -14,15 +14,15 @@ file_name = 'results'; %simulation number and .csv will be added
 
 
 for ii = 1:number_of_simulations
-    [Model, results] = FEM_simulation(tlist, number_of_defects);
+    [Model, results, labelface_ID] = FEM_simulation(tlist, number_of_defects);
     
     filename = append(file_name, "_" ,string(ii),".csv");
 
-    Get_results(Model, tlist, results, filename)
+    Get_results(Model, tlist, results, filename, labelface_ID)
     
 end
 
-function [ThermalModel, thermalresults] = FEM_simulation(tlist, number_of_defects)
+function [ThermalModel, thermalresults, labelface_ID] = FEM_simulation(tlist, number_of_defects)
     %% environment & sample properties
     Ambient_T = 22; %[°C]
 
@@ -39,7 +39,7 @@ function [ThermalModel, thermalresults] = FEM_simulation(tlist, number_of_defect
     ThermalModel = createpde('thermal', 'transient');
 
     %run the geometry script to create the sample
-    Multiple_defects(ThermalModel, number_of_defects);
+    labelface_ID = Multiple_defects(ThermalModel, number_of_defects);
     
     %plot the geometry
     figure
