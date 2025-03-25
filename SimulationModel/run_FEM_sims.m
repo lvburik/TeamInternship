@@ -6,7 +6,7 @@ clear
 %% simulation parameters
 tlist = 0:2:2;
 number_of_simulations = 2;
-number_of_defects = 3; %still bit buggy with more
+number_of_defects = 3;
 sample_thickness = 0.05; %[m]
 file_name = 'results'; %simulation number and .csv will be added
 
