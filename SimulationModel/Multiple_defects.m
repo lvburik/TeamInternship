@@ -2,7 +2,7 @@ function [f, g] = Multiple_defects(model, number_of_defects)
     % Sample dimensions
     L = 0.3;  % Length
     th = 0.05; % Thickness (not used in 2D)
-    d = 0.95*th*rand();  % Defect depth
+    d = 0.05*th+0.9*th*rand();  % Defect depth
 
     % Define the sample as a rectangle
     S = [3 4 -L/2 L/2 L/2 -L/2 -L/2 -L/2 L/2 L/2];  
@@ -56,8 +56,23 @@ function [f, g] = Multiple_defects(model, number_of_defects)
     model.Geometry = f;
 
     %extrude damaged plate until final thickness
-    extrude(f, 1, th-d);
+    extrude(f, nearestFace(f, [-0.999*L/2 0.999*L/2 d]), th-d);
     
-    translate(f, [0 0 -d]);
+    while f.NumCells > 1
+        cellfaces = cellFaces(f, 1, "internal");
+        for jj = 2:f.NumCells
+            for face = cellfaces
+                if ismember(face, cellFaces(f,jj, "internal"))
+                    neighbor_ID = jj;
+                end
+            end
+        end
+
+        mergeCells(f, [1, neighbor_ID]);
+    end
+    
+    model.Geometry = f;
 end
+
+
 
