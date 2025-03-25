@@ -4,10 +4,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 
+def load_simulation_data(path):
+    # load simulation data
+    simulation_data = pd.read_csv(path)
+    return simulation_data
+
 def extract_simulation_data(sim_data):
     # extract coordinates and temperatures
     x = sim_data['X'].values  # x-coordinates of nodes
-    y = sim_data['Y'].values  # t-coordinates of nodes
+    y = sim_data['Y'].values  # y-coordinates of nodes
     temperatures = sim_data.iloc[:, 3:].values  # temperature of nodes
     
     return x, y, temperatures
@@ -35,7 +40,7 @@ def interpolate_temperatures(x, y, temperatures):
 def main(path):
 
     # load simulation data
-    simulation_data = pd.read_csv(os.path.join(path, "SimulationModel/results.csv"))
+    simulation_data = load_simulation_data(path)
     print("simulation data shape: ", simulation_data.shape)
 
     # extract simulation data
@@ -52,18 +57,13 @@ def main(path):
 
     # flatten the grid to have shape (time steps, 307200)
     flattened_temperatures = grid_temperatures_transposed.reshape(temperatures.shape[1], -1)  
-    print("final Shape: ", flattened_temperatures.shape) # should be (num time steps, 307200)
+    print("final shape: ", flattened_temperatures.shape) # should be (num time steps, 307200)
 
-    # dataframe to save the interpolated data
-    flattened_temperatures_df = pd.DataFrame(flattened_temperatures)
-
-    # save the interpolated temperatures in a CSV file
-    output_csv_path = os.path.join(path, "interpolated_temperatures.csv")
-    flattened_temperatures_df.to_csv(output_csv_path, index=False)
-    print(f"interpolated temperatures saved to {output_csv_path}")
+    # save the interpolated temperatures in a npy file
+    np.save("./interpolated_temperatures", flattened_temperatures)
 
 if __name__ == "__main__":
-    path = "./"  # set path to working directory
+    path = "./SimulationModel/results.csv"  # set path to working directory
     main(path)
 
 
