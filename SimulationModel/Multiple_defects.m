@@ -1,4 +1,4 @@
-function labelface_ID = Multiple_defects(model, number_of_defects)
+function [g, labelface_ID] = Multiple_defects(model, number_of_defects)
     % Sample dimensions
     L = 0.3;  % Length
     th = 0.05; % Thickness (not used in 2D)

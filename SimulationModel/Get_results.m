@@ -1,7 +1,7 @@
 %%process results into labeled csv file
 
 
-function Get_results(ThermalModel, tlist, ThermalResults, filename, labelface_id)
+function Get_results(ThermalModel, tlist, ThermalResults, filename, labelface_id, g)
 
     %find all nodes in the XY plane
     node_IDs = find(ThermalModel.Mesh.Nodes(3, :) == 0)';
@@ -11,10 +11,10 @@ function Get_results(ThermalModel, tlist, ThermalResults, filename, labelface_id
     TemperatureData = ThermalResults.Temperature(node_IDs, :);
 
     %find location of nodes
-    locs = ThermalModel.Mesh.Nodes(1:3, node_IDs)';
+    locs = ThermalModel.Mesh.Nodes(1:2, node_IDs)';
     X = locs(:, 1); Y = locs(:, 2);
     
-    face_IDs = nearestFace(ThermalModel.Geometry, locs);
+    face_IDs = nearestFace(g, locs);
     labels = (face_IDs == labelface_id)';
 
     TimestampStrings = "T_" + string(tlist);
