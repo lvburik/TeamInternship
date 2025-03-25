@@ -1,10 +1,12 @@
+clear
+
 %run number of simulations with random defects at a random depth and save
 %results
 
 %% simulation parameters
-tlist = 0:2:10;
+tlist = 0:2:2;
 number_of_simulations = 1;
-number_of_defects = 2;
+number_of_defects = 3; %still bit buggy with more
 sample_thickness = 0.05; %[m]
 file_name = 'results'; %simulation number and .csv will be added
 
