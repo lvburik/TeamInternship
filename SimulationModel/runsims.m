@@ -5,14 +5,12 @@ clear
 
 %% simulation parameters
 tlist = 0:2:2;
-number_of_simulations = 1;
+number_of_simulations = 2;
 number_of_defects = 3; %still bit buggy with more
 sample_thickness = 0.05; %[m]
 file_name = 'results'; %simulation number and .csv will be added
 
-
-
-
+%loop for running multiple simulations
 for ii = 1:number_of_simulations
     [Model, results, labelface_ID, g] = FEM_simulation(tlist, number_of_defects);
     
@@ -68,6 +66,7 @@ function [ThermalModel, thermalresults, labelface_ID, g] = FEM_simulation(tlist,
     thermalresults = solve(ThermalModel,tlist);
 end
 
+%heat flux function
 function q = heatFluxFunction(region, state)
     x = region.x; % X-coordinates of the surface
     y = region.y; % Y-coordinates of the surface

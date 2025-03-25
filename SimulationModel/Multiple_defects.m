@@ -15,7 +15,7 @@ function [g, labelface_ID] = Multiple_defects(model, number_of_defects)
         shape = shapelist(randi(3));
     
         size = 5*L/11 * rand() + L/32;
-        offset_X = (L/2 - size) * (2*rand() - 1);  % Ensure shape stay inside the rectangle
+        offset_X = (L/2 - size) * (2*rand() - 1);  % Ensure shape stays inside the rectangle
         offset_Y = (L/2 - size) * (2*rand() - 1); 
 
         switch shape
@@ -29,9 +29,9 @@ function [g, labelface_ID] = Multiple_defects(model, number_of_defects)
                 % Define a triangle with three points
                 defect = [2 3 offset_X offset_X-size/2 offset_X+size/2 offset_Y+size*sqrt(3)/4  offset_Y-size*sqrt(3)/4  offset_Y-size*sqrt(3)/4 0 0];
             case "poly"
-                %to be implemented
+                %to be implemented?
             case "el"
-                %to be implemented
+                %to be implemented?
         end
         % Store defect in cell array
         defects{ii} = defect;
@@ -49,7 +49,6 @@ function [g, labelface_ID] = Multiple_defects(model, number_of_defects)
     % Assign the geometry to the PDE model
     g = geometryFromEdges(model, dl);
 
-
     %extrude undamaged plate upto defect depth
     f = extrude(g, d);
 
@@ -58,6 +57,7 @@ function [g, labelface_ID] = Multiple_defects(model, number_of_defects)
     %extrude damaged plate until final thickness
     extrude(f, nearestFace(f, [-0.999*L/2 0.999*L/2 d]), th-d);
     
+    %merge cells into one
     while f.NumCells > 1
         cellfaces = cellFaces(f, 1, "internal");
         for jj = 2:f.NumCells
@@ -71,9 +71,11 @@ function [g, labelface_ID] = Multiple_defects(model, number_of_defects)
         mergeCells(f, [1, neighbor_ID]);
     end
     
+    %assign final geometry to model
     model.Geometry = f;
 
-    labelface_ID = nearestFace(f, [-0.999*L/2 0.999*L/2 0]);
+    %find the face number for undamaged profile
+    labelface_ID = nearestFace(g, [-0.999*L/2 0.999*L/2]);
 end
 
 
