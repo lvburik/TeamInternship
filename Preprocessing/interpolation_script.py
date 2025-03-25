@@ -13,7 +13,7 @@ def extract_simulation_data(sim_data):
     # extract coordinates and temperatures
     x = sim_data['X'].values  # x-coordinates of nodes
     y = sim_data['Y'].values  # y-coordinates of nodes
-    temperatures = sim_data.iloc[:, 3:].values  # temperature of nodes
+    temperatures = sim_data.iloc[:, 4:].values  # temperature of nodes
     
     return x, y, temperatures
 def interpolate_temperatures(x, y, temperatures):
