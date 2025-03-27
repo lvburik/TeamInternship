@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import pandas as pd
+import argparse
+import sys
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 
@@ -13,7 +15,7 @@ def extract_simulation_data(sim_data):
     # extract coordinates and temperatures
     x = sim_data['X'].values  # x-coordinates of nodes
     y = sim_data['Y'].values  # y-coordinates of nodes
-    labels = sim_data['label'].values #damage label for each node
+    labels = sim_data['label'].values # damage label for each node
     temperatures = sim_data.iloc[:, 4:].values  # temperature of nodes
     
     return x, y, temperatures, labels
@@ -87,7 +89,8 @@ def main(path):
     np.save("./interpolated_labels", grid_labels)
 
 if __name__ == "__main__":
-    path = "./SimulationModel/results.csv"  # set path to working directory
+    # read file path for data
+    path = sys.argv[1]
     main(path)
 
 
