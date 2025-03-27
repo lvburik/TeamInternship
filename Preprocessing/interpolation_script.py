@@ -85,8 +85,9 @@ def main(path):
     print("final shape: ", flattened_temperatures.shape) # should be (num time steps, 307200)
 
     # save the interpolated temperatures in a npy file
-    np.save("./interpolated_temperatures", flattened_temperatures)
-    np.save("./interpolated_labels", grid_labels)
+    file_name, _ = os.path.splitext(os.path.basename(path))
+    np.save(f"./{file_name}", flattened_temperatures)
+    np.save(f"./{file_name}_labels", grid_labels)
 
 if __name__ == "__main__":
     # read file path for data
