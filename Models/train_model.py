@@ -2,13 +2,14 @@ import os
 import sys
 import torch
 from torch.utils.data import DataLoader
+import torchmetrics
 from sklearn.preprocessing import StandardScaler
 from thermal_dataset import ThermalDataset
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.utils import resample
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
 TRAIN_DATA = [
@@ -123,6 +124,27 @@ def test_model(model, test_loader):
     for X_batch, y_batch, _ in test_loader:
         y_pred = model(X_batch)
 
+def calculate_iou(y_true, y_pred):
+    
+    tp = np.sum((y_true == 1) & (y_pred == 1))
+    fn = np.sum((y_true == 1) & (y_pred == 0))
+    fp = np.sum((y_true == 0) & (y_pred == 1))
+
+    iou = tp / (tp + fn + fp) if tp + fn + fp > 0 else 0
+    return iou
+
+def evaluate_rf(y_true, y_pred):
+
+    # caculate evaluation metrics
+    acc = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    iou = calculate_iou(y_true, y_pred)
+
+    return acc, precision, recall, f1, iou
+
+
 def main(sim_data_path, exp_data_path):
     
     # initialize training dataset
@@ -155,7 +177,7 @@ def main(sim_data_path, exp_data_path):
     criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    freq = np.load(os.path.join(exp_data_path, "exp_freq.npy"))
+    #freq = np.load(os.path.join(exp_data_path, "exp_freq.npy"))
     
     # train data
     for batch_data in train_dataloader:
@@ -194,7 +216,7 @@ def main(sim_data_path, exp_data_path):
     print(f"X_train shape: {X_train.shape}")
     print(f"y_train shape: {y_train.shape}")
 
-    x, y = resample(X_train, y_train, n_samples=100000, random_state=42)
+    x, y = resample(X_train, y_train, n_samples=300000, random_state=42)
 
     print("training random forest now")
     # train random forest
@@ -222,18 +244,39 @@ def main(sim_data_path, exp_data_path):
     X_test = np.vstack(X_test)
     y_test = np.hstack(y_test)
 
-    x, y = resample(X_test, y_test, n_samples=20000, random_state=42)
+    x, y = resample(X_test, y_test, n_samples=80000, random_state=42)
 
     print(f"X_test shape: {X_test.shape}")
     print(f"y_test shape: {y_test.shape}")
 
-    
     # predict on test data
     preds = rf.predict(x)
-    acc = accuracy_score(y, preds)
-    print(f"Random Forest Accuracy: {acc:.4f}")
-    # 0.3636 first run on 2+2 traintestvids
-    # 0.4469 with 4+2 traintestvids
+
+    # calculate evaluation metrics
+    acc, precision, recall, f1, iou = evaluate_rf(y, preds)
+    print("Random Forest Evaluation:")
+    print(f"Accuracy: {acc:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    print(f"IoU: {iou:.4f}")
+   
+    # random forest accuracy run on fft data with 100k samples
+    #   0.904
+
+    # Random Forest Evaluation: trained with 10k samples
+    #   Accuracy: 0.9105
+    #   Precision: 0.9258
+    #   Recall: 0.9809
+    #   F1 Score: 0.9525
+    #   IoU: 0.9094
+
+    # Random Forest Evaluation: trained with 300k samples
+    #   Accuracy: 0.9056
+    #   Precision: 0.9323
+    #   Recall: 0.9667
+    #   F1 Score: 0.9492
+    #   IoU: 0.9033
 
 if __name__ == "__main__":
     # read file path for data
