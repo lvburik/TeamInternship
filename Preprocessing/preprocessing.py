@@ -46,7 +46,7 @@ def extract_peak_features(fft_data, freq):
     features = np.stack((peak_freqs, peak_magnitudes), axis=1)  # shape: (num_pixels, 2)
     return features
 
-def PCA(X , num_components):
+def apply_PCA(X , num_components):
      
     #Step-1
     X_centered = X - np.mean(X , axis = 1, keepdims=True)
@@ -71,7 +71,7 @@ def PCA(X , num_components):
      
     return X_reduced
 
-def PCA_SVD(X, num_components):
+def apply_PCA_SVD(X, num_components):
     # Step-1: Mean center the data
     X_centered = X - np.mean(X, axis=0)
     

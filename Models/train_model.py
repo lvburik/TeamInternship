@@ -133,7 +133,7 @@ def calculate_iou(y_true, y_pred):
     iou = tp / (tp + fn + fp) if tp + fn + fp > 0 else 0
     return iou
 
-def evaluate_rf(y_true, y_pred):
+def evaluate(y_true, y_pred):
 
     # caculate evaluation metrics
     acc = accuracy_score(y_true, y_pred)
@@ -153,6 +153,7 @@ def main(sim_data_path, exp_data_path):
         data_dir=exp_data_path, 
         mask_map=MASK_MAP, 
         num_pixels=NUM_PIXELS,
+        apply_PCA=False,
         extract_peaks=False,
         cutoff_frequency=0.1
     )
@@ -253,7 +254,7 @@ def main(sim_data_path, exp_data_path):
     preds = rf.predict(x)
 
     # calculate evaluation metrics
-    acc, precision, recall, f1, iou = evaluate_rf(y, preds)
+    acc, precision, recall, f1, iou = evaluate(y, preds)
     print("Random Forest Evaluation:")
     print(f"Accuracy: {acc:.4f}")
     print(f"Precision: {precision:.4f}")

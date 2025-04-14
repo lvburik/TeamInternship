@@ -11,8 +11,8 @@ from preprocessing import *
 
 class ThermalDataset(Dataset):
     def __init__(self, file_paths, data_dir, mask_map, num_pixels=307200, center_data=False,
-                 add_zero_padding=False, apply_fft=False, apply_wiener=False, extract_peaks=False,
-                 cutoff_frequency=1):
+                 add_zero_padding=False, apply_fft=False, apply_wiener=False, apply_PCA=False,
+                 extract_peaks=False, cutoff_frequency=1):
         """
         file_paths: list of .npy paths
         data_dir: directory where data is stored
@@ -25,6 +25,7 @@ class ThermalDataset(Dataset):
         self.add_zero_padding = add_zero_padding
         self.apply_fft = apply_fft
         self.apply_wiener = apply_wiener
+        self.apply_PCA = apply_PCA
         self.extract_peaks = extract_peaks
         self.cutoff_frequency = cutoff_frequency
 
@@ -114,6 +115,11 @@ class ThermalDataset(Dataset):
 
             return fft_data, mask, freq
         
+        if self.apply_PCA:
+            # apply PCA to reduce dimensionality
+            data = apply_PCA_SVD(data, num_components=10)
+            print("PCA data shape: ", data.shape)
+
         return data, mask
         
 
