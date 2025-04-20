@@ -58,10 +58,10 @@ class ThermalDataset(Dataset):
                 mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["tri"])
         else:
             raise ValueError(f"Unknown file path: {file_name}")
-        # load mask (labels) as a PNG image
-        mask = Image.open(mask_path).convert('L')  # Convert to grayscale
-        mask = np.array(mask).astype(np.float32)  # Convert to numpy array
-        print(f"Loaded mask with shape: {mask.shape}")
+        # load mask (labels)
+        mask = Image.open(mask_path).convert('L')  # convert to grayscale
+        mask = np.array(mask).astype(np.float32)
+        print(f"loaded mask with shape: {mask.shape}")
 
         mask = mask.reshape(480, 640)
         mask = np.where(mask > 0, 0, 1) # invert (0 for defect, 1 for no defect)

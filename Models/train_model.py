@@ -183,13 +183,13 @@ def main(sim_data_path, exp_data_path):
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     #freq = np.load(os.path.join(exp_data_path, "exp_freq.npy"))
-    i = 0
+
     # train data
     for batch_data in train_dataloader:
-        filtered_fft, mask = batch_data
-        print(i)
+        fft_data, mask = batch_data
+
         # format data
-        filtered_fft = np.abs(filtered_fft).squeeze(0).numpy()
+        fft_data = np.abs(fft_data).squeeze(0).numpy()
         mask = mask.squeeze(0).numpy()
         
         """# randomly select pixels
@@ -204,17 +204,15 @@ def main(sim_data_path, exp_data_path):
         plt.title(f'FFT of Thermal Signal (Filtered) for Pixel {pixel_id}')
         plt.grid(True)
         plt.show()"""
-        i += 1
+    
         # turn into (num_pixels, num_freqs)
-        filtered_fft = filtered_fft.T
+        fft_data = fft_data.T
 
         # turn into (num_pixels, )
         mask = mask.flatten()
 
-        X_train.append(filtered_fft)
+        X_train.append(fft_data)
         y_train.append(mask)
-        if i == 2:
-            break
     
     # put train data into one array
     X_train = np.vstack(X_train)
@@ -225,26 +223,27 @@ def main(sim_data_path, exp_data_path):
 
     x, y = resample(X_train, y_train, n_samples=100000, random_state=42)
 
-    print("training random forest now")
+    print("training random forest")
+    
     # train random forest
     rf = RandomForestClassifier(n_estimators=100, random_state=42)
     rf.fit(x, y)
 
     # check batch of data
     for batch_data in test_dataloader:
-        filtered_fft, mask = batch_data
+        fft_data, mask = batch_data
         
         # req = freq.squeeze(0)
-        filtered_fft = np.abs(filtered_fft).squeeze(0).numpy()
+        fft_data = np.abs(fft_data).squeeze(0).numpy()
         mask = mask.squeeze(0).numpy()
 
         # turn into (num_pixels, num_frames)
-        filtered_fft = filtered_fft.T
+        fft_data = fft_data.T
 
         # turn into (num_pixels, )
         mask = mask.flatten()
 
-        X_test.append(filtered_fft)
+        X_test.append(fft_data)
         y_test.append(mask)
     
     # put test data into one array
