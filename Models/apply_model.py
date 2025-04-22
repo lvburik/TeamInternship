@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from thermal_dataset import ThermalDataset 
 
 # load the model
-rf = joblib.load("./random_forest_model.joblib")
+rf = joblib.load("./Models/random_forest_model.joblib")
 
 # choose a test video path
 file_path = "fft data/Composite/new_2_lamps_left_off_fft.npy"
