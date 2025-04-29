@@ -83,11 +83,11 @@ def main(path):
     print("final shape: ", flattened_temperatures.shape) # should be (num time steps, 307200)
 
     # save the interpolated temperatures in a npy file
-    np.save("./interpolated_temperatures", flattened_temperatures)
-    np.save("./interpolated_labels", grid_labels)
+    np.save("./interpolated_temperatures1", flattened_temperatures)
+    np.save("./interpolated_labels1", grid_labels)
 
 if __name__ == "__main__":
-    path = "./SimulationModel/results.csv"  # set path to working directory
+    path = "C:/Users/20202555/OneDrive - TU Eindhoven/Documents/M AI&ES - Year 1/Team-internship/results1.csv"  # set path to working directory
     main(path)
 
 
