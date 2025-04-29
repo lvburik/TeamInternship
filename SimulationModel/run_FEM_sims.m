@@ -4,18 +4,25 @@ clear
 %results
 
 %% simulation parameters
-tlist = 0:2:2;
-number_of_simulations = 2;
-number_of_defects = 3;
+timesteps = 200;
+
+simtime = 1200;
+
+periods = 1;
+tlist = exp(((1:timesteps/2)/(timesteps/2)*log(simtime/2)));
+tlist = [tlist, tlist+simtime/periods/2];
+number_of_simulations = 10;
+number_of_defects = 1;
 sample_thickness = 0.05; %[m]
-file_name = 'results'; %simulation number and .csv will be added
+file_name = 'improved_homogenious_sims'; %simulation number and .csv will be added
 
 %loop for running multiple simulations
-for ii = 1:number_of_simulations
-    [Model, results, labelface_ID, g] = FEM_simulation(tlist, number_of_defects);
+for ii = 1:number_of_simulations+1
+    [Model, results, labelface_ID, g] = FEM_simulation(tlist, 5);
     
     filename = append(file_name, "_" ,string(ii),".csv");
 
+    pdeplot3D(Model,"ColorMapData",results.Temperature(:,end))
     Get_results(Model, tlist, results, filename, labelface_ID, g)
     
 end
@@ -54,7 +61,7 @@ function [ThermalModel, thermalresults, labelface_ID, g] = FEM_simulation(tlist,
     thermalBC(ThermalModel, 'Face', 1:ThermalModel.Geometry.NumFaces, 'Emissivity',emis_coeff, 'AmbientTemperature', Ambient_T);
     
     %heat flux through top face
-    thermalBC(ThermalModel,'Face',1:ThermalModel.Geometry.NumFaces,'HeatFlux',@heatFluxFunction);
+    thermalBC(ThermalModel,'Face',1:g.NumFaces,'HeatFlux',@heatFluxFunction);
 
     %initial conditions
     thermalIC(ThermalModel,Ambient_T);
@@ -70,14 +77,11 @@ end
 function q = heatFluxFunction(region, state)
     x = region.x; % X-coordinates of the surface
     y = region.y; % Y-coordinates of the surface
-    z = region.z; % Z-coordinate
     t = state.time; % Current simulation time
     q = 0;
-    if z == 0
-        if t < 300
-            q = 350; %could be a x and y dependent function
-        end
-    end    
+        if rem(t, 1200) < 1200/2
+            q = 500; %could be a x and y dependent function
+        end  
 end
 
 

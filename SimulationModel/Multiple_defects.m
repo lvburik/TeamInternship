@@ -2,8 +2,9 @@ function [g, labelface_ID] = Multiple_defects(model, number_of_defects)
     % Sample dimensions
     L = 0.3;  % Length
     th = 0.05; % Thickness (not used in 2D)
-    d = 0.05*th+0.9*th*rand();  % Defect depth
-
+    dlist = [0.02, 0.025, 0.03, 0.035, 0.04];  
+    d = dlist(randi(length(dlist))); % Defect depth
+    
     % Define the sample as a rectangle
     S = [3 4 -L/2 L/2 L/2 -L/2 -L/2 -L/2 L/2 L/2];  
 
