@@ -37,14 +37,14 @@ def extract_peak_features(data, freq):
 
 def extract_patches(data, mask, patch_size=16):
     # reshape into (480, 640, num_freqs)
-    data = data.T.reshape(480, 640, 103)
+    data = data.T.reshape(480, 640, data.shape[0])
 
     patches = []
     labels = []
     # extract non-overlapping patches and their labels
-    for i in range(0, data.shape[0], patch_size):
-        for j in range(0, data.shape[1], patch_size):
-            if i + patch_size <= data.shape[0] and j + patch_size <= data.shape[1]:
+    for i in range(0, 480, patch_size):
+        for j in range(0, 640, patch_size):
+            if i + patch_size <= 480 and j + patch_size <= 640:
                 patch = data[i:i+patch_size, j:j+patch_size]
                 # take mean magnitude for each frequency bin of pixels in patch
                 patch = np.mean(patch, axis=(0,1))
