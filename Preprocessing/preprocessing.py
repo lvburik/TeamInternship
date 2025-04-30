@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from scipy.signal import wiener
 from scipy.fftpack import fft, fftfreq
 import matplotlib.pyplot as plt
 
@@ -18,33 +17,45 @@ def add_zero_padding(data, num_zeroes):
     # num_zeroes for exp_data should be 2048 - data.shape[0]
     return np.pad(data, ((0, num_zeroes), (0,0)))
 
-def apply_wiener(fft_data):
-    # filter frequency domain image using wiener filter
-    filtered_fft = []
-    for spectrum in fft_data.T:
-        magnitude = np.abs(spectrum)
-        #phase = np.angle(spectrum)
-        filtered_magnitude = wiener(magnitude)
-        filtered_fft.append(filtered_magnitude)  #* np.exp(1j*phase))
-
-    return np.array(filtered_fft).T
-
-def standardize(fft_data):
-    # standardize the filtered fft data
-    fft_magnitudes = np.abs(fft_data)
+def standardize(data):
+    # standardize fft data
+    fft_magnitudes = np.abs(data)
     mean = np.mean(fft_magnitudes, axis=0)
     std = np.std(fft_magnitudes, axis=0)
     standardized_data = (fft_magnitudes - mean)/std
     return standardized_data
 
-def extract_peak_features(fft_data, freq):
-    fft_magnitude = np.abs(fft_data)
+def extract_peak_features(data, freq):
+    # extract peak frequency and magnitude
+    fft_magnitude = np.abs(data)
     peak_indices = np.argmax(fft_magnitude, axis=0)  # shape: (num_pixels,)
     peak_magnitudes = fft_magnitude[peak_indices, np.arange(fft_magnitude.shape[1])]
     peak_freqs = freq[peak_indices]
     
     features = np.stack((peak_freqs, peak_magnitudes), axis=1)  # shape: (num_pixels, 2)
     return features
+
+def extract_patches(data, mask, patch_size=16):
+    # reshape into (480, 640, num_freqs)
+    data = data.T.reshape(480, 640, 103)
+
+    patches = []
+    labels = []
+    # extract non-overlapping patches and their labels
+    for i in range(0, data.shape[0], patch_size):
+        for j in range(0, data.shape[1], patch_size):
+            if i + patch_size <= data.shape[0] and j + patch_size <= data.shape[1]:
+                patch = data[i:i+patch_size, j:j+patch_size]
+                # take mean magnitude for each frequency bin of pixels in patch
+                patch = np.mean(patch, axis=(0,1))
+
+                label = mask[i:i+patch_size, j:j+patch_size]
+                label = 1 if np.mean(label) > 0.5 else 0
+
+                patches.append(patch)
+                labels.append(label)
+
+    return np.array(patches), np.array(labels)
 
 def apply_PCA(X , num_components):
      

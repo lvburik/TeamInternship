@@ -11,22 +11,18 @@ from preprocessing import *
 
 class ThermalDataset(Dataset):
     def __init__(self, file_paths, data_dir, mask_map, num_pixels=307200, center_data=False,
-                 add_zero_padding=False, apply_fft=False, apply_wiener=False, apply_PCA=False,
-                 extract_peaks=False, cutoff_frequency=1):
-        """
-        file_paths: list of .npy paths
-        data_dir: directory where data is stored
-        num_pixels: number of pixels to sample per video
-        """
+                 add_zero_padding=False, apply_fft=False, apply_PCA=False,
+                 extract_peaks=False, extract_patches=False, cutoff_frequency=1):
+        
         self.file_paths = file_paths
         self.data_dir = data_dir
         self.num_pixels = num_pixels
         self.center_data = center_data
         self.add_zero_padding = add_zero_padding
         self.apply_fft = apply_fft
-        self.apply_wiener = apply_wiener
         self.apply_PCA = apply_PCA
         self.extract_peaks = extract_peaks
+        self.extract_patches = extract_patches
         self.cutoff_frequency = cutoff_frequency
 
         # mapping of masks to corresponding files
@@ -58,6 +54,7 @@ class ThermalDataset(Dataset):
                 mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["tri"])
         else:
             raise ValueError(f"Unknown file path: {file_name}")
+        
         # load mask (labels)
         mask = Image.open(mask_path).convert('L')  # convert to grayscale
         mask = np.array(mask).astype(np.float32)
@@ -97,26 +94,29 @@ class ThermalDataset(Dataset):
             freq = freq[:cutoff_index]
             print("reduced fft data shape: ", fft_data.shape)
 
+            # save filtered fft data and frequencies
             np.save(os.path.splitext(file_name)[0] + "_fft", fft_data)
             np.save(os.path.splitext(file_name)[0] + "_freq", freq)
-            # apply wiener filter
-
-            if self.apply_wiener:
-                fft_data = apply_wiener(fft_data)
-                print("filtered fft data shape: ", fft_data.shape)
             
             print("fft data shape: ", fft_data.shape)
 
+            # extract peak frequency and magnitude
             if self.extract_peaks:
                 fft_data = extract_peak_features(fft_data, freq)
                 print("fft peak data shape: ", fft_data.shape)
-                print("fft peak data: ", fft_data[1:10])
                 print("max peak magnitude: ", np.max(fft_data[:, 1]))
 
             return fft_data, mask, freq
         
+        # extract patches from raw fft data
+        if self.extract_patches:
+            data, mask = extract_patches(data, mask, patch_size=4)
+            data = data.T
+            print("extracted patches shape: ", data.shape)
+            print("extracted patches mask shape: ", mask.shape)
+        
+        # apply PCA to reduce dimensionality
         if self.apply_PCA:
-            # apply PCA to reduce dimensionality
             data = apply_PCA_SVD(data, num_components=10)
             print("PCA data shape: ", data.shape)
 

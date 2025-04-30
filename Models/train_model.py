@@ -64,69 +64,6 @@ MASK_MAP = {
 
 NUM_PIXELS = 307200
 
-class OneDCNN(torch.nn.Module):
-    """
-    not yet tested
-    """
-    def __init__(self, input_size, num_classes=2, num_hidden=128):
-        super(OneDCNN, self).__init__()
-        self.conv1 = torch.nn.Sequential(
-            torch.nn.Conv1d(in_channels=1, out_channels=16, kernel_size=5, stride=2),
-            torch.nn.BatchNorm1d(16),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool1d(kernel_size=2, stride=2),
-        )
-        self.conv2 = torch.nn.Sequential(
-            torch.nn.Conv1d(in_channels=16, out_channels=32, kernel_size=5, stride=2),
-            torch.nn.BatchNorm1d(32),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool1d(kernel_size=2, stride=2),
-        )
-        self.conv3 = torch.nn.Sequential(
-            torch.nn.Conv1d(in_channels=32, out_channels=64, kernel_size=5, stride=2),
-            torch.nn.BatchNorm1d(64),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool1d(kernel_size=2, stride=2),
-        )
-
-        self.pool = torch.nn.AdaptiveAvgPool1d(1)
-
-        # fully connected dense layers
-        self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(64, num_hidden),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(0.5)
-        )
-
-        self.fc2 = torch.nn.Linear(num_hidden, num_classes)
-
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.conv2(out)
-        out = self.conv3(out)
-        out = self.pool(out)
-        out = out.view(out.size(0), -1)  # flatten the output
-        out = self.fc1(out)
-        out = self.fc2(out)
-
-        return out    
-
-def train_model(model, train_loader, criterion, optimizer, num_epochs=10): 
-    model.train()
-    for epoch in range(num_epochs):
-        for X_batch, y_batch, _ in train_loader:
-            y_pred = model(X_batch)
-            optimizer.zero_grad()
-            loss = criterion(y_pred, y_batch)
-            loss.backward()
-            optimizer.step()
-
-def test_model(model, test_loader):
-    model.eval()
-    num_correct = 0
-    for X_batch, y_batch, _ in test_loader:
-        y_pred = model(X_batch)
-
 def calculate_iou(y_true, y_pred):
     tp = np.sum((y_true == 1) & (y_pred == 1))
     fn = np.sum((y_true == 1) & (y_pred == 0))
@@ -159,6 +96,7 @@ def main(sim_data_path, exp_data_path):
         num_pixels=NUM_PIXELS,
         apply_PCA=False,
         extract_peaks=False,
+        extract_patches=True,
         cutoff_frequency=0.1
     )
     
@@ -169,6 +107,7 @@ def main(sim_data_path, exp_data_path):
         mask_map=MASK_MAP,
         num_pixels=NUM_PIXELS, 
         extract_peaks=False,
+        extract_patches=True,
         cutoff_frequency=0.1
     )
     
@@ -177,10 +116,6 @@ def main(sim_data_path, exp_data_path):
 
     X_train, y_train = [], []
     X_test, y_test = [], []
-
-    model = OneDCNN(input_size=NUM_PIXELS, num_classes=2)
-    criterion = torch.nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     #freq = np.load(os.path.join(exp_data_path, "exp_freq.npy"))
 
@@ -221,13 +156,13 @@ def main(sim_data_path, exp_data_path):
     print(f"X_train shape: {X_train.shape}")
     print(f"y_train shape: {y_train.shape}")
 
-    x, y = resample(X_train, y_train, n_samples=100000, random_state=42)
+    #x, y = resample(X_train, y_train, n_samples=100000, random_state=42)
 
     print("training random forest")
     
     # train random forest
     rf = RandomForestClassifier(n_estimators=100, random_state=42)
-    rf.fit(x, y)
+    rf.fit(X_train, y_train)
 
     # check batch of data
     for batch_data in test_dataloader:
@@ -250,16 +185,16 @@ def main(sim_data_path, exp_data_path):
     X_test = np.vstack(X_test)
     y_test = np.hstack(y_test)
 
-    x, y = resample(X_test, y_test, n_samples=80000, random_state=42)
+    #x, y = resample(X_test, y_test, n_samples=80000, random_state=42)
 
     print(f"X_test shape: {X_test.shape}")
     print(f"y_test shape: {y_test.shape}")
 
     # predict on test data
-    preds = rf.predict(x)
+    preds = rf.predict(X_test)
 
     # calculate evaluation metrics
-    acc, precision, recall, f1, iou = evaluate(y, preds)
+    acc, precision, recall, f1, iou = evaluate(y_test, preds)
     print("Random Forest Evaluation:")
     print(f"Accuracy: {acc:.4f}")
     print(f"Precision: {precision:.4f}")
@@ -267,7 +202,8 @@ def main(sim_data_path, exp_data_path):
     print(f"F1 Score: {f1:.4f}")
     print(f"IoU: {iou:.4f}")
     
-    joblib.dump(rf, "random_forest_model.joblib")
+    joblib.dump(rf, "rf_batch.joblib")
+
     # random forest accuracy run on fft data with 100k samples
     #   0.904
 
@@ -278,14 +214,14 @@ def main(sim_data_path, exp_data_path):
     #   F1 Score: 0.7139
     #   IoU: 0.5550
 
-    # Random Forest Evaluation: trained with 10k samples
+    # Random Forest Evaluation: trained with 10k pixels
     #   Accuracy: 0.9105
     #   Precision: 0.9258
     #   Recall: 0.9809
     #   F1 Score: 0.9525
     #   IoU: 0.9094
 
-    # Random Forest Evaluation: trained with 300k samples
+    # Random Forest Evaluation: trained with 300k pixels
     #   Accuracy: 0.9056
     #   Precision: 0.9323
     #   Recall: 0.9667
@@ -298,6 +234,13 @@ def main(sim_data_path, exp_data_path):
     #   Recall: 0.9573
     #   F1 Score: 0.9456
     #   IoU: 0.8969
+
+    # Random Forest Evaluation: trained on patches of 4x4
+    #   Accuracy: 0.8602
+    #   Precision: 0.9326
+    #   Recall: 0.9123
+    #   F1 Score: 0.9223
+    #   IoU: 0.8559
 
 if __name__ == "__main__":
     # read file path for data
