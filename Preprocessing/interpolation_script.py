@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import pandas as pd
+import argparse
+import sys
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 
@@ -13,9 +15,10 @@ def extract_simulation_data(sim_data):
     # extract coordinates and temperatures
     x = sim_data['X'].values  # x-coordinates of nodes
     y = sim_data['Y'].values  # y-coordinates of nodes
-    temperatures = sim_data.iloc[:, 3:].values  # temperature of nodes
+    labels = sim_data['label'].values # damage label for each node
+    temperatures = sim_data.iloc[:, 4:].values  # temperature of nodes
     
-    return x, y, temperatures
+    return x, y, temperatures, labels
 def interpolate_temperatures(x, y, temperatures):
     # create meshgrid for pixel data
     grid_x, grid_y = np.meshgrid(
@@ -37,6 +40,24 @@ def interpolate_temperatures(x, y, temperatures):
         
     return grid_temperatures
 
+def interpolate_label(x, y, mesh_labels):
+    # create meshgrid for pixel data
+    grid_x, grid_y = np.meshgrid(
+        np.linspace(x.min(), x.max(), 640),
+        np.linspace(y.min(), y.max(), 480)
+    )
+
+    grid_labels = np.zeros((grid_x.shape[0], grid_x.shape[1]))
+
+    grid_labels = griddata(
+        points = (x, y),
+        values = mesh_labels,
+        xi = (grid_x, grid_y),
+        method = 'nearest')
+    
+    return(grid_labels)
+    
+
 def main(path):
 
     # load simulation data
@@ -44,13 +65,17 @@ def main(path):
     print("simulation data shape: ", simulation_data.shape)
 
     # extract simulation data
-    x, y, temperatures = extract_simulation_data(simulation_data)
+    x, y, temperatures, labels = extract_simulation_data(simulation_data)
     print(f"loaded data: {x.shape}, {y.shape}, {temperatures.shape} ")
     print("num time steps: ", temperatures.shape[1])
 
     # interpolate temperatures
     grid_temperatures = interpolate_temperatures(x, y, temperatures)
     print("interpolated temperatures: ", grid_temperatures.shape)
+
+    # interpolate labels
+    grid_labels = interpolate_label(x, y, labels)
+    print("interpolated labels: ", grid_labels.shape)
 
     # transpose to make time axis the first dimension
     grid_temperatures_transposed = np.transpose(grid_temperatures, (2, 0, 1))
@@ -60,10 +85,13 @@ def main(path):
     print("final shape: ", flattened_temperatures.shape) # should be (num time steps, 307200)
 
     # save the interpolated temperatures in a npy file
-    np.save("./interpolated_temperatures", flattened_temperatures)
+    file_name, _ = os.path.splitext(os.path.basename(path))
+    np.save(f"./{file_name}", flattened_temperatures)
+    np.save(f"./{file_name}_labels", grid_labels)
 
 if __name__ == "__main__":
-    path = "./SimulationModel/results.csv"  # set path to working directory
+    # read file path for data
+    path = sys.argv[1]
     main(path)
 
 
