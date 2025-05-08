@@ -16,7 +16,7 @@ function Get_results(ThermalModel, tlist, ThermalResults, filename, labelface_id
     
     %find labels for damaged nodes
     face_IDs = nearestFace(g, locs);
-    labels = (face_IDs == labelface_id)';
+    labels = 1 - double(face_IDs == labelface_id)';
 
     TimestampStrings = "T_" + string(tlist);
 
