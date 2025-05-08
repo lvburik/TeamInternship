@@ -50,7 +50,7 @@ for file_path in file_paths:
 
     # load dataset for a video
     dataset = ThermalDataset(
-        file_paths=[file_paths],
+        file_paths=[file_path],
         data_dir=data_dir,
         mask_map=mask_map,
         num_pixels=307200,

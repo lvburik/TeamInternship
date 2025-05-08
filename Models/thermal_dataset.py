@@ -61,13 +61,13 @@ class ThermalDataset(Dataset):
         #print(f"loaded mask with shape: {mask.shape}")
 
         mask = mask.reshape(480, 640)
-        mask = np.where(mask > 0, 0, 1) # invert (0 for defect, 1 for no defect)
+        mask = np.where(mask > 0, 1, 0) # invert (0 for defect, 1 for no defect)
         
         # plot mask
-        """plt.imshow(mask, cmap='gray')
+        plt.imshow(mask, cmap='gray')
         plt.colorbar()
         plt.title('Defect Mask')
-        plt.show()"""
+        plt.show()
        
         # randomly sample pixels
         """pixel_ids = np.random.choice(307200, self.num_pixels, replace=False)
