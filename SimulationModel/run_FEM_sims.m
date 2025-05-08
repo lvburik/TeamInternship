@@ -4,9 +4,14 @@ clear
 %results
 
 %% simulation parameters
-tlist = 0:2:2;
-number_of_simulations = 2;
-number_of_defects = 3;
+timesteps = 100;
+simtime = 600;
+
+tlist = exp(((1:timesteps/2)/(timesteps/2)*log(simtime/2)));
+tlist = [tlist, tlist+simtime/2];
+
+number_of_simulations = 1;
+number_of_defects = 1;
 sample_thickness = 0.05; %[m]
 file_name = 'results'; %simulation number and .csv will be added
 
@@ -49,12 +54,12 @@ function [ThermalModel, thermalresults, labelface_ID, g] = FEM_simulation(tlist,
                                'SpecificHeat',specific_heat);
 
     %boundary conditions:
-    thermalBC(ThermalModel,'Face',1:ThermalModel.Geometry.NumFaces,'ConvectionCoefficient',convex_coeff, 'AmbientTemperature',Ambient_T);
+    thermalBC(ThermalModel,'Face',1:ThermalModel.Geometry.NumFaces,'ConvectionCoefficient',convex_coeff,'Emissivity',emis_coeff,'AmbientTemperature',Ambient_T);
     ThermalModel.StefanBoltzmannConstant = 5.670373E-8;
-    thermalBC(ThermalModel, 'Face', 1:ThermalModel.Geometry.NumFaces, 'Emissivity',emis_coeff, 'AmbientTemperature', Ambient_T);
     
     %heat flux through top face
-    thermalBC(ThermalModel,'Face',1:ThermalModel.Geometry.NumFaces,'HeatFlux',@heatFluxFunction);
+    thermalBC(ThermalModel,'Face',1:ThermalModel.Geometry.NumFaces,'HeatFlux',@heatFluxFunction,'ConvectionCoefficient',convex_coeff,'Emissivity',emis_coeff,'AmbientTemperature',Ambient_T);
+
 
     %initial conditions
     thermalIC(ThermalModel,Ambient_T);
