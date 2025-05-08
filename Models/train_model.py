@@ -4,8 +4,12 @@ import torch
 from torch.utils.data import DataLoader
 import joblib
 import torchmetrics
+import torch.nn.functional as F
+import torch.optim as optim
 from sklearn.preprocessing import StandardScaler
 from thermal_dataset import ThermalDataset
+import xgboost as xgb
+from xgboost import XGBClassifier
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.utils import resample
@@ -64,10 +68,236 @@ MASK_MAP = {
 
 NUM_PIXELS = 307200
 
+class Network(torch.nn.Module): 
+    def __init__(self, n_in, n_classes=1): 
+        super(Network,self).__init__() 
+
+        # convolutional and pooling blocks
+        self.block1 = torch.nn.Sequential(
+            torch.nn.Conv2d(n_in, 64, kernel_size=7, stride=2, padding=3),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.3),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.block2 = torch.nn.Sequential(
+            torch.nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(32, 16, kernel_size=3, stride=1, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        self.upsample = torch.nn.ConvTranspose2d(16, 16, kernel_size=3, stride=8, padding=1)
+        self.final_conv = torch.nn.Conv2d(16, n_classes, kernel_size=1)
+
+    
+    def forward(self,x): 
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.upsample(x)
+        x = self.final_conv(x)
+
+        # get output to exact original size
+        x = F.interpolate(x, size=(480, 640), mode='bilinear', align_corners=False)
+
+        return x  
+
+def train_model(model, train_loader, criterion, optimizer, num_epochs=10): 
+    model.train()
+    for epoch in range(num_epochs):
+        running_loss = 0.0
+        for i, (X_batch, y_batch) in enumerate(train_loader):
+            # format for model
+            print("batch number: ", i)
+            #print(f"X_batch shape: {X_batch.shape}")
+            X_batch = X_batch.view(X_batch.shape[0], 103, 480, 640)
+            #print(f"X_batch shape: {X_batch.shape}")
+            y_batch = y_batch.view(y_batch.shape[0], 1, 480, 640).float()
+            #print(f"y_batch shape: {y_batch.shape}")
+
+            # obtain predictions
+            y_pred = model(X_batch)
+            #print(f"y_pred shape: {y_pred.shape}")
+
+            # calculate loss, backprop
+            optimizer.zero_grad()
+            loss = criterion(y_pred, y_batch)
+            loss.backward()
+            optimizer.step()
+
+            # print statistics
+            running_loss += loss.item()
+
+        print(f"[{epoch + 1}] Epoch Loss: {running_loss / len(train_loader):.4f}")
+
+def test_model(model, test_loader):
+    model.eval()
+    num_correct = 0
+    with torch.no_grad():
+        for X_batch, y_batch in test_loader:
+            # format for model
+            X_batch = X_batch.view(X_batch.shape[0], 103, 480, 640)
+            #print(f"X_batch shape: {X_batch.shape}")
+            y_batch = y_batch.view(y_batch.shape[0], 1, 480, 640).float()
+            
+            # obtain predictions
+            y_pred = model(X_batch)
+            predicted = (y_pred > 0.5).float() 
+            
+            # evaluate model
+            y_true = y_batch.view(-1).cpu().numpy().astype(int) 
+            y_pred_flat = predicted.view(-1).cpu().numpy().astype(int)
+            evaluate(y_true, y_pred_flat)
+
+def train_xgb_model(train_loader):
+    X_train, y_train = [], []
+    for fft_data, mask in train_loader:
+
+        # format data
+        fft_data = fft_data.squeeze(0).numpy()
+        mask = mask.squeeze(0).numpy()
+        
+        # turn into (num_pixels, num_freqs)
+        fft_data = fft_data.T
+
+        # turn into (num_pixels, )
+        mask = mask.flatten()
+
+        X_train.append(fft_data)
+        y_train.append(mask)
+        print(f"fft_data shape: {fft_data.shape}")
+
+    # format data for rf
+    X_train = np.vstack(X_train)
+    y_train = np.hstack(y_train)
+
+    print(f"X_train shape: {X_train.shape}")
+    print(f"y_train shape: {y_train.shape}")
+
+    model = XGBClassifier(
+        objective="binary:logistic",
+        tree_method="hist",
+        eval_metric="auc",
+        learning_rate=0.1,
+        n_estimators=100,
+)
+    model.fit(X_train, y_train)
+
+    # save model
+    joblib.dump(model, "xgb_model.joblib")
+    print("xgb model saved")
+
+    return model
+
+def test_xgb_model(model, test_loader):
+    X_test, y_test = [], []
+    for fft_data, mask in test_loader:
+        # format data
+        fft_data = fft_data.squeeze(0).numpy()
+        mask = mask.squeeze(0).numpy()
+
+        # turn into (num_pixels, num_freqs)
+        fft_data = fft_data.T
+
+        # turn into (num_pixels, )
+        mask = mask.flatten()
+
+        X_test.append(fft_data)
+        y_test.append(mask)
+
+    # format data for xgb
+    X_test = np.vstack(X_test)
+    y_test = np.hstack(y_test)
+
+    print(f"X_test shape: {X_test.shape}")
+    print(f"y_test shape: {y_test.shape}")
+
+    # obtain predictions
+    preds = model.predict(X_test)
+    
+    # evaluate xgb model
+    print("xgb model evaluation")
+    evaluate(y_test, preds)
+
+    return preds
+
+def train_rf_model(train_loader):
+    # train random forst model
+    X_train, y_train = [], []
+    for fft_data, mask in train_loader:
+
+        # format data
+        fft_data = fft_data.squeeze(0).numpy()
+        mask = mask.squeeze(0).numpy()
+        
+        # turn into (num_pixels, num_freqs)
+        fft_data = fft_data.T
+
+        # turn into (num_pixels, )
+        mask = mask.flatten()
+
+        X_train.append(fft_data)
+        y_train.append(mask)
+        print(f"fft_data shape: {fft_data.shape}")
+
+    # format data for rf
+    X_train = np.vstack(X_train)
+    y_train = np.hstack(y_train)
+
+    print(f"X_train shape: {X_train.shape}")
+    print(f"y_train shape: {y_train.shape}")
+
+    #x, y = resample(X_train, y_train, n_samples=100000, random_state=42)
+
+    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf.fit(X_train, y_train)
+
+    # save model
+    joblib.dump(rf, "rf_batch.joblib")
+    print("rf model saved")
+
+    return rf
+
+def test_rf_model(rf, test_loader):
+    # test random forest model
+    X_test, y_test = [], []
+    for fft_data, mask in test_loader:
+        # format data
+        fft_data = fft_data.squeeze(0).numpy()
+        mask = mask.squeeze(0).numpy()
+
+        # turn into (num_pixels, num_freqs)
+        fft_data = fft_data.T
+
+        # turn into (num_pixels, )
+        mask = mask.flatten()
+
+        X_test.append(fft_data)
+        y_test.append(mask)
+
+    # format data for rf
+    X_test = np.vstack(X_test)
+    y_test = np.hstack(y_test)
+
+    # x, y = resample(X_test, y_test, n_samples=80000, random_state=42)
+
+    print(f"X_test shape: {X_test.shape}")
+    print(f"y_test shape: {y_test.shape}")
+
+    # obtain predictions
+    preds = rf.predict(X_test)
+    
+    # evaluate rf model
+    evaluate(y_test, preds)
+
+    return preds
+
 def calculate_iou(y_true, y_pred):
-    tp = np.sum((y_true == 1) & (y_pred == 1))
-    fn = np.sum((y_true == 1) & (y_pred == 0))
-    fp = np.sum((y_true == 0) & (y_pred == 1))
+    tp = np.sum((y_true == 0) & (y_pred == 0))
+    fn = np.sum((y_true == 0) & (y_pred == 1))
+    fp = np.sum((y_true == 1) & (y_pred == 0))
 
     # calculate intersection over union
     iou = tp / (tp + fn + fp) if tp + fn + fp > 0 else 0
@@ -83,6 +313,12 @@ def evaluate(y_true, y_pred):
     f1 = f1_score(y_true, y_pred)
     iou = calculate_iou(y_true, y_pred)
 
+    print(f"Accuracy: {acc:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    print(f"IoU: {iou:.4f}")
+
     return acc, precision, recall, f1, iou
 
 
@@ -97,7 +333,7 @@ def main(sim_data_path, exp_data_path):
         apply_PCA=False,
         extract_peaks=False,
         extract_patches=True,
-        cutoff_frequency=0.1
+        cutoff_frequency=1
     )
     
     # initialize testing dataset
@@ -108,7 +344,7 @@ def main(sim_data_path, exp_data_path):
         num_pixels=NUM_PIXELS, 
         extract_peaks=False,
         extract_patches=True,
-        cutoff_frequency=0.1
+        cutoff_frequency=1
     )
     
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
@@ -119,90 +355,45 @@ def main(sim_data_path, exp_data_path):
 
     #freq = np.load(os.path.join(exp_data_path, "exp_freq.npy"))
 
-    # train data
-    for batch_data in train_dataloader:
-        fft_data, mask = batch_data
+    model = Network(n_in=103)
 
-        # format data
-        fft_data = np.abs(fft_data).squeeze(0).numpy()
-        mask = mask.squeeze(0).numpy()
-        
-        """# randomly select pixels
-        pixel_id = np.random.choice(NUM_PIXELS, 10)
+    criterion = torch.nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+  
 
-        # plot randomly selected pixels
-        p_fft = filtered_fft[:, pixel_id]
-        plt.figure(figsize=(8, 4))
-        plt.plot(freq[:700], np.abs(p_fft[:700]))
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Magnitude')
-        plt.title(f'FFT of Thermal Signal (Filtered) for Pixel {pixel_id}')
-        plt.grid(True)
-        plt.show()"""
+    X = np.random.rand(10000, 103)
+    y = np.random.randint(0, 2, 10000)
+
+    model = XGBClassifier(tree_method='hist')
+    model.fit(X, y)
+
     
-        # turn into (num_pixels, num_freqs)
-        fft_data = fft_data.T
-
-        # turn into (num_pixels, )
-        mask = mask.flatten()
-
-        X_train.append(fft_data)
-        y_train.append(mask)
+    # train model
+    print("training model")
+    #train_model(model, train_dataloader, criterion, optimizer, num_epochs=5)
+    #torch.save(model.state_dict(), "model5.pth")
+    model = train_xgb_model(train_dataloader)
+    #torch.save(model, "xgb_model.joblib")
     
-    # put train data into one array
-    X_train = np.vstack(X_train)
-    y_train = np.hstack(y_train)
+    # test model
+    print("testing model")
+    preds = test_xgb_model(model, test_dataloader)
 
-    print(f"X_train shape: {X_train.shape}")
-    print(f"y_train shape: {y_train.shape}")
+    #torch.save(model.state_dict(), "model.pth")
 
-    #x, y = resample(X_train, y_train, n_samples=100000, random_state=42)
 
-    print("training random forest")
     
     # train random forest
-    rf = RandomForestClassifier(n_estimators=100, random_state=42)
-    rf.fit(X_train, y_train)
 
-    # check batch of data
-    for batch_data in test_dataloader:
-        fft_data, mask = batch_data
-        
-        # req = freq.squeeze(0)
-        fft_data = np.abs(fft_data).squeeze(0).numpy()
-        mask = mask.squeeze(0).numpy()
 
-        # turn into (num_pixels, num_frames)
-        fft_data = fft_data.T
+    #print("training random forest")
+    #rf = train_rf_model(train_dataloader)
 
-        # turn into (num_pixels, )
-        mask = mask.flatten()
-
-        X_test.append(fft_data)
-        y_test.append(mask)
-    
-    # put test data into one array
-    X_test = np.vstack(X_test)
-    y_test = np.hstack(y_test)
-
-    #x, y = resample(X_test, y_test, n_samples=80000, random_state=42)
-
-    print(f"X_test shape: {X_test.shape}")
-    print(f"y_test shape: {y_test.shape}")
+   
 
     # predict on test data
-    preds = rf.predict(X_test)
-
-    # calculate evaluation metrics
-    acc, precision, recall, f1, iou = evaluate(y_test, preds)
-    print("Random Forest Evaluation:")
-    print(f"Accuracy: {acc:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1 Score: {f1:.4f}")
-    print(f"IoU: {iou:.4f}")
+    #preds = rf.test_rf_model(test_dataloader)
     
-    joblib.dump(rf, "rf_batch.joblib")
 
     # random forest accuracy run on fft data with 100k samples
     #   0.904

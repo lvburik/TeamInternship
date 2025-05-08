@@ -36,8 +36,8 @@ class ThermalDataset(Dataset):
         # load data from file  
         file_path = os.path.join(self.data_dir, self.file_paths[idx])
         data = np.load(file_path, mmap_mode='r').copy()
-        print(f"loaded {self.file_paths[idx]}")
-        print("data shape: ", data.shape)
+        #print(f"loaded {self.file_paths[idx]}")
+        #print("data shape: ", data.shape)
 
         # load mask (labels)
         file_name = os.path.basename(file_path)
@@ -58,7 +58,7 @@ class ThermalDataset(Dataset):
         # load mask (labels)
         mask = Image.open(mask_path).convert('L')  # convert to grayscale
         mask = np.array(mask).astype(np.float32)
-        print(f"loaded mask with shape: {mask.shape}")
+        #print(f"loaded mask with shape: {mask.shape}")
 
         mask = mask.reshape(480, 640)
         mask = np.where(mask > 0, 0, 1) # invert (0 for defect, 1 for no defect)
@@ -119,7 +119,8 @@ class ThermalDataset(Dataset):
         if self.apply_PCA:
             data = apply_PCA_SVD(data, num_components=10)
             print("PCA data shape: ", data.shape)
-
+        
+        data = np.abs(data)
         return data, mask
         
 
