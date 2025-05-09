@@ -66,8 +66,6 @@ MASK_MAP = {
         "composite" : "Composite plate/composite plate mask.png"
 }
 
-NUM_PIXELS = 307200
-
 class Network(torch.nn.Module): 
     def __init__(self, n_in, n_classes=1): 
         super(Network,self).__init__() 
@@ -255,7 +253,7 @@ def train_rf_model(train_loader):
     rf.fit(X_train, y_train)
 
     # save model
-    joblib.dump(rf, "rf_batch.joblib")
+    joblib.dump(rf, "rf_batch_rn.joblib")
     print("rf model saved")
 
     return rf
@@ -295,9 +293,9 @@ def test_rf_model(rf, test_loader):
     return preds
 
 def calculate_iou(y_true, y_pred):
-    tp = np.sum((y_true == 0) & (y_pred == 0))
-    fn = np.sum((y_true == 0) & (y_pred == 1))
-    fp = np.sum((y_true == 1) & (y_pred == 0))
+    tp = np.sum((y_true == 1) & (y_pred == 1))
+    fn = np.sum((y_true == 1) & (y_pred == 0))
+    fp = np.sum((y_true == 0) & (y_pred == 1))
 
     # calculate intersection over union
     iou = tp / (tp + fn + fp) if tp + fn + fp > 0 else 0
@@ -328,11 +326,10 @@ def main(sim_data_path, exp_data_path):
     train_dataset = ThermalDataset(
         file_paths=TRAIN_DATA,
         data_dir=exp_data_path, 
-        mask_map=MASK_MAP, 
-        num_pixels=NUM_PIXELS,
+        mask_map=MASK_MAP,
         apply_PCA=False,
         extract_peaks=False,
-        extract_patches=True,
+        extract_patches=False,
         cutoff_frequency=1
     )
     
@@ -341,9 +338,8 @@ def main(sim_data_path, exp_data_path):
         file_paths=TEST_DATA,
         data_dir=exp_data_path,
         mask_map=MASK_MAP,
-        num_pixels=NUM_PIXELS, 
         extract_peaks=False,
-        extract_patches=True,
+        extract_patches=False,
         cutoff_frequency=1
     )
     
@@ -359,40 +355,29 @@ def main(sim_data_path, exp_data_path):
 
     criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-  
 
-    X = np.random.rand(10000, 103)
-    y = np.random.randint(0, 2, 10000)
-
-    model = XGBClassifier(tree_method='hist')
-    model.fit(X, y)
-
-    
     # train model
     print("training model")
+
+    # xgb
+    model = train_xgb_model(train_dataloader)
+    # torch.save(model, "xgb_model_rn.joblib")
+
+    # cnn
     #train_model(model, train_dataloader, criterion, optimizer, num_epochs=5)
     #torch.save(model.state_dict(), "model5.pth")
-    model = train_xgb_model(train_dataloader)
-    #torch.save(model, "xgb_model.joblib")
+
+    # rf
+    #rf = train_rf_model(train_dataloader)
     
     # test model
     print("testing model")
+
+    # xgb
     preds = test_xgb_model(model, test_dataloader)
 
-    #torch.save(model.state_dict(), "model.pth")
-
-
-    
-    # train random forest
-
-
-    #print("training random forest")
-    #rf = train_rf_model(train_dataloader)
-
-   
-
-    # predict on test data
-    #preds = rf.test_rf_model(test_dataloader)
+    # rf
+    #preds = test_rf_model(rf, test_dataloader)
     
 
     # random forest accuracy run on fft data with 100k samples

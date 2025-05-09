@@ -7,12 +7,14 @@ from thermal_dataset import ThermalDataset
 from train_model import Network
 
 # load the model
-rf = joblib.load("./Models/saved models/rf1.joblib")
+rf = joblib.load("./Models/saved models/rf_batch_rn.joblib")
 
-model = Network(n_in=103)
+xgb = joblib.load("./Models/saved models/xgb_model.joblib")
+
+"""model = Network(n_in=103)
 
 model.load_state_dict(torch.load("./model5.pth"))
-model.eval()
+model.eval()"""
 
 # choose a test video path
 file_path = "fft data/Composite/new_2_lamps_left_off_fft.npy"
@@ -24,7 +26,16 @@ file_path = "fft data/Resin/circular_3_lamps_fft.npy"
 file_paths = [
     "fft data/Composite/new_2_lamps_left_off_fft.npy",
     "fft data/Composite/new_1_lamp_left_on_fft.npy",
-    "fft data/Composite/new_1_lamp_right_on_fft.npy",]
+    "fft data/Composite/new_1_lamp_right_on_fft.npy",
+    "fft data/Composite/new_2_lamps_left_off_fft.npy",
+    "fft data/Composite/new_2_lamps_right_off_fft.npy",
+    "fft data/Composite/new_2_lamps_top_off_fft.npy",
+    "fft data/Composite/new_3_lamps_fft.npy",
+    "fft data/Resin/circular_1_lamp_left_on_fft.npy",
+    "fft data/Resin/circular_1_lamp_right_on_fft.npy",
+    "fft data/Resin/circular_1_lamp_top_on_fft.npy",
+    "fft data/Resin/circular_2_lamps_left_off_fft.npy",
+    "fft data/Resin/circular_3_lamps_fft.npy",]
 """fft data/Composite/new_1_lamp_top_on_fft.npy",
     "fft data/Resin/circular_2_lamps_right_off_fft.npy",
     "fft data/Resin/circular_2_lamps_top_off_fft.npy",
@@ -53,10 +64,8 @@ for file_path in file_paths:
         file_paths=[file_path],
         data_dir=data_dir,
         mask_map=mask_map,
-        num_pixels=307200,
         extract_peaks=False,
         extract_patches=False,
-        cutoff_frequency=0.1
     )
 
     # get the (fft_data, mask) tuple
@@ -64,24 +73,23 @@ for file_path in file_paths:
 
     print(f"fft data shape: {fft_data.shape}")
 
-    fft_data = fft_data.reshape(103, 480, 640)
+    #fft_data = fft_data.reshape(103, 480, 640)
     
     print(f"fft data shape: {fft_data.shape}")
 
-    fft_data = torch.tensor(fft_data).unsqueeze(0)
+    #fft_data = torch.tensor(fft_data).unsqueeze(0)
 
     print(f"fft data shape: {fft_data.shape}")
 
     # predict damaged pixels
-    #preds = rf.predict(fft_data)
-    preds = model(fft_data)
+    preds = xgb.predict(fft_data.T)
+    #preds = model(fft_data)
 
-    predicted = (preds > 0.99).float()
-    print(preds[0:10]) 
+    #predicted = (preds > 0.99).float()
             
     # evaluate model
 
-    preds = predicted.view(-1).cpu().numpy().astype(int)
+    #preds = predicted.view(-1).cpu().numpy().astype(int)
 
     # reshape to image
     pred_img = preds.reshape((480 , 640))

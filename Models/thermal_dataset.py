@@ -10,13 +10,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'P
 from preprocessing import *
 
 class ThermalDataset(Dataset):
-    def __init__(self, file_paths, data_dir, mask_map, num_pixels=307200, center_data=False,
+    def __init__(self, file_paths, data_dir, mask_map, center_data=False,
                  add_zero_padding=False, apply_fft=False, apply_PCA=False,
                  extract_peaks=False, extract_patches=False, cutoff_frequency=1):
         
         self.file_paths = file_paths
         self.data_dir = data_dir
-        self.num_pixels = num_pixels
         self.center_data = center_data
         self.add_zero_padding = add_zero_padding
         self.apply_fft = apply_fft
@@ -61,18 +60,13 @@ class ThermalDataset(Dataset):
         #print(f"loaded mask with shape: {mask.shape}")
 
         mask = mask.reshape(480, 640)
-        mask = np.where(mask > 0, 1, 0) # invert (0 for defect, 1 for no defect)
+        mask = np.where(mask > 0, 1, 0) # (0 for defect, 1 for no defect)
         
         # plot mask
-        plt.imshow(mask, cmap='gray')
+        """plt.imshow(mask, cmap='gray')
         plt.colorbar()
         plt.title('Defect Mask')
-        plt.show()
-       
-        # randomly sample pixels
-        """pixel_ids = np.random.choice(307200, self.num_pixels, replace=False)
-        data = data[:, pixel_ids]
-        mask = mask.flatten()[pixel_ids]"""
+        plt.show()"""
 
         # center the data
         if self.center_data:
