@@ -129,6 +129,8 @@ def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
             running_loss += loss.item()
 
         print(f"[{epoch + 1}] Epoch Loss: {running_loss / len(train_loader):.4f}")
+    torch.save(model.state_dict(), "cnn_model.pth")
+    print("model saved")
 
 def test_model(model, test_loader):
     model.eval()
@@ -176,11 +178,12 @@ def train_xgb_model(train_loader):
 
     model = XGBClassifier(
         objective="binary:logistic",
-        tree_method="hist",
         eval_metric="auc",
-        learning_rate=0.1,
+        
+        learning_rate=0.01,
         n_estimators=100,
-)
+        scale_pos_weight=5,
+    )
     model.fit(X_train, y_train)
 
     # save model
@@ -361,11 +364,9 @@ def main(sim_data_path, exp_data_path):
 
     # xgb
     model = train_xgb_model(train_dataloader)
-    # torch.save(model, "xgb_model_rn.joblib")
 
     # cnn
     #train_model(model, train_dataloader, criterion, optimizer, num_epochs=5)
-    #torch.save(model.state_dict(), "model5.pth")
 
     # rf
     #rf = train_rf_model(train_dataloader)
