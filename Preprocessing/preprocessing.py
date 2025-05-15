@@ -57,31 +57,6 @@ def extract_patches(data, mask, patch_size=16):
 
     return np.array(patches), np.array(labels)
 
-def apply_PCA(X , num_components):
-     
-    #Step-1
-    X_centered = X - np.mean(X , axis = 1, keepdims=True)
-     
-    #Step-2
-    cov_mat = np.cov(X_centered , rowvar = False)
-     
-    #Step-3
-    eigen_values , eigen_vectors = np.linalg.eigh(cov_mat)
-     
-    #Step-4
-    sorted_index = np.argsort(eigen_values)[::-1]
-    sorted_eigenvalue = eigen_values[sorted_index]
-    sorted_eigenvectors = eigen_vectors[:,sorted_index]
-     
-    #Step-5
-    eigenvector_subset = sorted_eigenvectors[:,0:num_components]
-     
-    #Step-6
-    X_reduced = np.dot(X_centered, eigenvector_subset.T)
-
-     
-    return X_reduced
-
 def apply_PCA_SVD(X, num_components):
     # Step-1: Mean center the data
     X_centered = X - np.mean(X, axis=0)
@@ -96,4 +71,6 @@ def apply_PCA_SVD(X, num_components):
     X_reduced = np.dot(X_centered, eigenvector_subset.T)  # Shape: (301, num_components)
     
     return X_reduced
+
+
 

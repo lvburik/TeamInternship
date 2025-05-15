@@ -7,9 +7,9 @@ from thermal_dataset import ThermalDataset
 from train_model import Network
 
 # load the model
-rf = joblib.load("./Models/saved models/rf_batch_rn.joblib")
+#rf = joblib.load("./Models/saved models/rf_batch_rn.joblib")
 
-xgb = joblib.load("./Models/saved models/xgb_model.joblib")
+#xgb = joblib.load("./Models/saved models/xgb.joblib")
 
 """model = Network(n_in=103)
 
@@ -101,13 +101,12 @@ for file_path in file_paths:
     plt.colorbar(label="Class")
     plt.axis("off")
     plt.tight_layout()
-    plt.show()
    
 
     # save plot
-    """file_name = file_path.split('/')[-1].replace('.npy', '.png').replace('_fft', '')
+    file_name = file_path.split('/')[-1].replace('.npy', '.png').replace('_fft', '')
     output_file = f"pred1_{file_name}"
     plt.savefig(output_file, dpi=300)
-    print(f"saved prediction to {output_file}")"""
+    print(f"saved prediction to {output_file}")
 
     plt.close()

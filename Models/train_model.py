@@ -12,6 +12,7 @@ import xgboost as xgb
 from xgboost import XGBClassifier
 import numpy as np
 from matplotlib import pyplot as plt
+from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
@@ -167,11 +168,12 @@ def train_xgb_model(train_loader):
 
         X_train.append(fft_data)
         y_train.append(mask)
-        print(f"fft_data shape: {fft_data.shape}")
 
     # format data for rf
     X_train = np.vstack(X_train)
     y_train = np.hstack(y_train)
+    #X_train, y_train = resample(X_train, y_train, n_samples=1000000, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=42)
 
     print(f"X_train shape: {X_train.shape}")
     print(f"y_train shape: {y_train.shape}")
@@ -179,12 +181,15 @@ def train_xgb_model(train_loader):
     model = XGBClassifier(
         objective="binary:logistic",
         eval_metric="auc",
-        
         learning_rate=0.01,
         n_estimators=100,
         scale_pos_weight=5,
+        early_stopping_rounds=10,
     )
-    model.fit(X_train, y_train)
+    model.fit(X_train, y_train, 
+              eval_set=[(X_train, y_train), (X_val, y_val)],
+              verbose=True)
+
 
     # save model
     joblib.dump(model, "xgb_model.joblib")
@@ -246,6 +251,8 @@ def train_rf_model(train_loader):
     # format data for rf
     X_train = np.vstack(X_train)
     y_train = np.hstack(y_train)
+    X_train = X_train.astype(np.float32)
+    y_train = y_train.astype(np.float32)
 
     print(f"X_train shape: {X_train.shape}")
     print(f"y_train shape: {y_train.shape}")
@@ -256,7 +263,7 @@ def train_rf_model(train_loader):
     rf.fit(X_train, y_train)
 
     # save model
-    joblib.dump(rf, "rf_batch_rn.joblib")
+    joblib.dump(rf, "rf_patch_rn.joblib")
     print("rf model saved")
 
     return rf
@@ -332,7 +339,7 @@ def main(sim_data_path, exp_data_path):
         mask_map=MASK_MAP,
         apply_PCA=False,
         extract_peaks=False,
-        extract_patches=False,
+        extract_patches=True,
         cutoff_frequency=1
     )
     
@@ -342,7 +349,7 @@ def main(sim_data_path, exp_data_path):
         data_dir=exp_data_path,
         mask_map=MASK_MAP,
         extract_peaks=False,
-        extract_patches=False,
+        extract_patches=True,
         cutoff_frequency=1
     )
     
