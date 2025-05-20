@@ -11,18 +11,18 @@ from preprocessing import *
 
 class ThermalDataset(Dataset):
     def __init__(self, file_paths, data_dir, mask_map, center_data=False,
-                 add_zero_padding=False, apply_fft=False, apply_PCA=False,
-                 extract_peaks=False, extract_patches=False, cutoff_frequency=1):
+                 add_zero_padding=False, apply_fft=False, cutoff_frequency=1,
+                 apply_PCA=False, extract_patches=False, extract_cnn_patches=False):
         
         self.file_paths = file_paths
         self.data_dir = data_dir
         self.center_data = center_data
         self.add_zero_padding = add_zero_padding
         self.apply_fft = apply_fft
-        self.apply_PCA = apply_PCA
-        self.extract_peaks = extract_peaks
-        self.extract_patches = extract_patches
         self.cutoff_frequency = cutoff_frequency
+        self.apply_PCA = apply_PCA
+        self.extract_patches = extract_patches
+        self.extract_cnn_patches = extract_cnn_patches
 
         # mapping of masks to corresponding files
         self.mask_mapping = mask_map
@@ -60,7 +60,7 @@ class ThermalDataset(Dataset):
         #print(f"loaded mask with shape: {mask.shape}")
 
         mask = mask.reshape(480, 640)
-        mask = np.where(mask > 0, 1, 0) # (0 for defect, 1 for no defect)
+        mask = np.where(mask > 0, 1, 0)
         
         # plot mask
         """plt.imshow(mask, cmap='gray')
@@ -94,20 +94,20 @@ class ThermalDataset(Dataset):
             
             print("fft data shape: ", fft_data.shape)
 
-            # extract peak frequency and magnitude
-            if self.extract_peaks:
-                fft_data = extract_peak_features(fft_data, freq)
-                print("fft peak data shape: ", fft_data.shape)
-                print("max peak magnitude: ", np.max(fft_data[:, 1]))
-
             return fft_data, mask, freq
         
-        # extract patches from raw fft data
+        # extract patches from fft data
         if self.extract_patches:
             data, mask = extract_patches(data, mask, patch_size=4)
             data = data.T
             print("extracted patches shape: ", data.shape)
             print("extracted patches mask shape: ", mask.shape)
+        
+        # extract patches from fft data for CNN 
+        if self.extract_cnn_patches:
+            data, mask = extract_cnn_patches(data, mask, patch_size=128, overlap=0.5, neg_patch_prob=1)
+            #print("extracted cnn patches shape: ", data.shape)
+            #print("extracted cnn patches mask shape: ", mask.shape)
         
         # apply PCA to reduce dimensionality
         if self.apply_PCA:

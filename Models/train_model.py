@@ -88,32 +88,46 @@ class Network(torch.nn.Module):
             torch.nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
-        self.upsample = torch.nn.ConvTranspose2d(16, 16, kernel_size=3, stride=8, padding=1)
+        self.upsample1 = torch.nn.ConvTranspose2d(16, 16, kernel_size=3, stride=4, padding=1, output_padding=3)
+        self.upsample2 = torch.nn.ConvTranspose2d(16, 16, kernel_size=3, stride=2, padding=1, output_padding=1)
         self.final_conv = torch.nn.Conv2d(16, n_classes, kernel_size=1)
 
     
     def forward(self,x): 
         x = self.block1(x)
         x = self.block2(x)
-        x = self.upsample(x)
+        x = self.upsample1(x)
+        x = self.upsample2(x)
         x = self.final_conv(x)
 
         # get output to exact original size
-        x = F.interpolate(x, size=(480, 640), mode='bilinear', align_corners=False)
+        #x = F.interpolate(x, size=(480, 640), mode='bilinear', align_corners=False)
 
         return x  
 
-def train_model(model, train_loader, criterion, optimizer, num_epochs=10): 
+def train_model(train_loader, num_epochs=10): 
+    model = Network(n_in=103)
+
+    pos_weight = torch.tensor([20])
+    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
     model.train()
+    losses = []
     for epoch in range(num_epochs):
         running_loss = 0.0
         for i, (X_batch, y_batch) in enumerate(train_loader):
-            # format for model
             print("batch number: ", i)
-            #print(f"X_batch shape: {X_batch.shape}")
-            X_batch = X_batch.view(X_batch.shape[0], 103, 480, 640)
-            #print(f"X_batch shape: {X_batch.shape}")
-            y_batch = y_batch.view(y_batch.shape[0], 1, 480, 640).float()
+            
+            # format for model
+            #print(f"X_batch shape before: {X_batch.shape}")
+            # X_batch = [num_patches, num_freqs, patch_size, patch_size]
+            X_batch = X_batch.squeeze(0)
+            X_batch = X_batch.permute(0, 3, 2, 1)
+            #print(f"X_batch shape after: {X_batch.shape}")
+
+            # y_batch = [num_patches, 1, patch_size, patch_size]
+            y_batch = y_batch.squeeze(0).unsqueeze(1).float()
             #print(f"y_batch shape: {y_batch.shape}")
 
             # obtain predictions
@@ -128,29 +142,48 @@ def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
 
             # print statistics
             running_loss += loss.item()
-
-        print(f"[{epoch + 1}] Epoch Loss: {running_loss / len(train_loader):.4f}")
+        avg_loss = running_loss / len(train_loader)
+        losses.append(avg_loss)
+        print(f"[{epoch + 1}] epoch loss: {avg_loss:.4f}")
     torch.save(model.state_dict(), "cnn_model.pth")
     print("model saved")
 
+    plt.figure()
+    plt.plot(range(1, num_epochs + 1), losses)
+    plt.xlabel("epoch")
+    plt.ylabel("loss")
+    plt.title("training loss")
+
+    plt.savefig("training_loss.png")
+    plt.close()
+
+    return model
+
 def test_model(model, test_loader):
     model.eval()
-    num_correct = 0
+    y_true = []
+    y_pred = []
     with torch.no_grad():
         for X_batch, y_batch in test_loader:
             # format for model
-            X_batch = X_batch.view(X_batch.shape[0], 103, 480, 640)
+            X_batch = X_batch.squeeze(0)
+            X_batch = X_batch.permute(0, 3, 2, 1)
             #print(f"X_batch shape: {X_batch.shape}")
-            y_batch = y_batch.view(y_batch.shape[0], 1, 480, 640).float()
+            y_batch = y_batch.squeeze(0).unsqueeze(1).float()
             
             # obtain predictions
-            y_pred = model(X_batch)
-            predicted = (y_pred > 0.5).float() 
+            y_batch_pred = model(X_batch)
+            predicted = (y_batch_pred > 0.5).float() 
             
             # evaluate model
-            y_true = y_batch.view(-1).cpu().numpy().astype(int) 
-            y_pred_flat = predicted.view(-1).cpu().numpy().astype(int)
-            evaluate(y_true, y_pred_flat)
+            y_batch_true = y_batch.view(-1).cpu().numpy().astype(int) 
+            y_batch_pred = predicted.view(-1).cpu().numpy().astype(int)
+
+            y_true.append(y_batch_true)
+            y_pred.append(y_batch_pred)
+    y_true = np.concatenate(y_true)
+    y_pred = np.concatenate(y_pred)
+    evaluate(y_true, y_pred)
 
 def train_xgb_model(train_loader):
     X_train, y_train = [], []
@@ -338,8 +371,8 @@ def main(sim_data_path, exp_data_path):
         data_dir=exp_data_path, 
         mask_map=MASK_MAP,
         apply_PCA=False,
-        extract_peaks=False,
-        extract_patches=True,
+        extract_patches=False,
+        extract_cnn_patches=True,
         cutoff_frequency=1
     )
     
@@ -348,8 +381,8 @@ def main(sim_data_path, exp_data_path):
         file_paths=TEST_DATA,
         data_dir=exp_data_path,
         mask_map=MASK_MAP,
-        extract_peaks=False,
-        extract_patches=True,
+        extract_patches=False,
+        extract_cnn_patches=True,
         cutoff_frequency=1
     )
     
@@ -361,19 +394,14 @@ def main(sim_data_path, exp_data_path):
 
     #freq = np.load(os.path.join(exp_data_path, "exp_freq.npy"))
 
-    model = Network(n_in=103)
-
-    criterion = torch.nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
     # train model
     print("training model")
 
     # xgb
-    model = train_xgb_model(train_dataloader)
+    # model = train_xgb_model(train_dataloader)
 
     # cnn
-    #train_model(model, train_dataloader, criterion, optimizer, num_epochs=5)
+    model = train_model(train_dataloader, num_epochs=2)
 
     # rf
     #rf = train_rf_model(train_dataloader)
@@ -382,10 +410,13 @@ def main(sim_data_path, exp_data_path):
     print("testing model")
 
     # xgb
-    preds = test_xgb_model(model, test_dataloader)
+    #preds = test_xgb_model(model, test_dataloader)
 
     # rf
     #preds = test_rf_model(rf, test_dataloader)
+
+    # cnn
+    test_model(model, test_dataloader)
     
 
     # random forest accuracy run on fft data with 100k samples

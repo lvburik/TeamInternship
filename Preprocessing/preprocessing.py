@@ -25,22 +25,13 @@ def standardize(data):
     standardized_data = (fft_magnitudes - mean)/std
     return standardized_data
 
-def extract_peak_features(data, freq):
-    # extract peak frequency and magnitude
-    fft_magnitude = np.abs(data)
-    peak_indices = np.argmax(fft_magnitude, axis=0)  # shape: (num_pixels,)
-    peak_magnitudes = fft_magnitude[peak_indices, np.arange(fft_magnitude.shape[1])]
-    peak_freqs = freq[peak_indices]
-    
-    features = np.stack((peak_freqs, peak_magnitudes), axis=1)  # shape: (num_pixels, 2)
-    return features
-
 def extract_patches(data, mask, patch_size=16):
     # reshape into (480, 640, num_freqs)
     data = data.T.reshape(480, 640, data.shape[0])
 
     patches = []
     labels = []
+
     # extract non-overlapping patches and their labels
     for i in range(0, 480, patch_size):
         for j in range(0, 640, patch_size):
@@ -50,6 +41,7 @@ def extract_patches(data, mask, patch_size=16):
                 patch = np.mean(patch, axis=(0,1))
 
                 label = mask[i:i+patch_size, j:j+patch_size]
+                # label patch according to patch mean
                 label = 1 if np.mean(label) > 0.5 else 0
 
                 patches.append(patch)
@@ -57,17 +49,42 @@ def extract_patches(data, mask, patch_size=16):
 
     return np.array(patches), np.array(labels)
 
+def extract_cnn_patches(data, mask, patch_size=128, overlap=0, neg_patch_prob=1.0):
+    # reshape into (480, 640, num_freqs)
+    data = data.T.reshape(480, 640, data.shape[0])
+
+    stride = int(patch_size - overlap * patch_size)
+
+    patches = []
+    labels = []
+    
+    # extract overlapping patches and their labels
+    for i in range(0, 480-patch_size+1, stride):
+        for j in range(0, 640-patch_size+1, stride):
+            patch = data[i:i+patch_size, j:j+patch_size]
+            patch_mask = mask[i:i+patch_size, j:j+patch_size]
+            if patch_mask.sum() > 0:
+                # prioritize patches with defects
+                patches.append(patch)
+                labels.append(patch_mask)
+            elif np.random.random() < neg_patch_prob:
+                # randomly include some patches with no defects
+                patches.append(patch)
+                labels.append(patch_mask)
+
+    return np.array(patches), np.array(labels)
+
 def apply_PCA_SVD(X, num_components):
-    # Step-1: Mean center the data
+    # mean center the data
     X_centered = X - np.mean(X, axis=0)
     
-    # Step-2: Compute SVD instead of covariance matrix
+    # compute SVD instead of covariance matrix
     U, S, Vt = np.linalg.svd(X_centered, full_matrices=False)
     
-    # Step-3: Select the top 'num_components' principal components
-    eigenvector_subset = Vt[:num_components, :]  # Shape: (num_components, 307200)
+    # select the top 'num_components' principal components
+    eigenvector_subset = Vt[:num_components, :]  # shape: (num_components, 307200)
     
-    # Step-4: Project data onto the new subspace
+    # project data onto the new subspace
     X_reduced = np.dot(X_centered, eigenvector_subset.T)  # Shape: (301, num_components)
     
     return X_reduced
