@@ -102,7 +102,7 @@ class ThermalDataset(Dataset):
             print("extracted patches mask shape: ", mask.shape)
         
         if self.extract_cnn_patches:
-            data, mask = extract_cnn_patches(data, mask, patch_size=128, overlap=0.5, neg_patch_prob=1)
+            data, mask = extract_cnn_patches(data, mask, patch_size=128, overlap=0.7, neg_patch_prob=1)
             #print("extracted cnn patches shape: ", data.shape)
             #print("extracted cnn patches mask shape: ", mask.shape)
         

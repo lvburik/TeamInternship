@@ -56,7 +56,7 @@ TEST_DATA = [
     "fft data/Resin/square_2_lamps_left_off_fft.npy",
     "fft data/Resin/square_2_lamps_right_off_fft.npy",
     "fft data/Resin/triangular_1_lamp_right_on_fft.npy",
-    "fft data/Resin/triangular_2_lamps_left_off_fft.npy"] 
+    "fft data/Resin/triangular_2_lamps_left_off_fft.npy"]
 
 # define experimental labels
 MASK_MAP = {
@@ -108,7 +108,7 @@ class Network(torch.nn.Module):
 def train_model(train_loader, num_epochs=10): 
     model = Network(n_in=103)
 
-    pos_weight = torch.tensor([20])
+    pos_weight = torch.tensor([10])
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -401,7 +401,7 @@ def main(sim_data_path, exp_data_path):
     # model = train_xgb_model(train_dataloader)
 
     # cnn
-    model = train_model(train_dataloader, num_epochs=2)
+    model = train_model(train_dataloader, num_epochs=100)
 
     # rf
     #rf = train_rf_model(train_dataloader)
