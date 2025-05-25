@@ -1,9 +1,7 @@
 import sys
 import os
-import torch
 import numpy as np
 from torch.utils.data import Dataset
-from matplotlib import pyplot as plt
 from PIL import Image
 
 # add the path to the preprocessing module
@@ -13,7 +11,7 @@ from preprocessing import *
 class ThermalDataset(Dataset):
     def __init__(self, file_paths, data_dir, mask_map, center_data=False,
                  add_zero_padding=False, apply_fft=False, cutoff_frequency=1,
-                 apply_PCA=False, extract_patches=False, extract_cnn_patches=False):
+                 apply_PCA=False, extract_patches=False, extract_cnn_patches=False, transform=None):
         
         self.file_paths = file_paths                    # list of file paths within data_dir
         self.data_dir = data_dir                        # path to data directory    
@@ -24,6 +22,7 @@ class ThermalDataset(Dataset):
         self.apply_PCA = apply_PCA                      # apply PCA to data
         self.extract_patches = extract_patches          # extract patches from input image
         self.extract_cnn_patches = extract_cnn_patches  # extract patches for CNN training
+        self.transform = transform
 
         # mapping of masks to corresponding files
         self.mask_mapping = mask_map
@@ -111,6 +110,9 @@ class ThermalDataset(Dataset):
             print("PCA data shape: ", data.shape)
         
         data = np.abs(data)
+
+        if self.transform:
+            data, mask = self.transform(data, mask)
         return data, mask
         
 
