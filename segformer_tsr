@@ -1,0 +1,120 @@
+# %% imports
+import numpy as np
+import os
+import glob
+from PIL import Image
+from scipy.ndimage import gaussian_filter
+import tensorflow as tf
+import matplotlib.pyplot as plt
+from transformers import Trainer, TrainingArguments
+from transformers import SegformerForSemanticSegmentation, SegformerFeatureExtractor
+import piq
+
+#torch imports
+import torch
+from torchvision import transforms
+import torch
+from torch.utils.data import Dataset, DataLoader
+import torch.nn as nn
+import torch.optim as optim
+from torch.optim import AdamW
+from torchmetrics.functional import structural_similarity_index_measure as ssim
+import torch.nn.functional as F
+from torchmetrics import JaccardIndex
+from segmentation_models_pytorch.losses import DiceLoss
+
+# data
+from Resin_plates import *
+from data import *
+
+# %% load data
+resin_folder="data"
+r_data=glob.glob(os.path.join(resin_folder,"*.npy"))
+resin_data=[]
+print("a is done")
+
+path = "Resin_plates/circular.png"
+image=Image.open(path)
+mask_c=np.array(image)
+#print(mask_c.shape)
+
+path_c = "Resin_plates/rec.png"
+image_c=Image.open(path_c)
+mask_rec=np.array(image_c)
+#print(mask_rec.shape)
+
+path_s = "Resin_plates/square.png"
+image_s=Image.open(path_s)
+mask_s=np.array(image_s)
+#print(mask_s.shape)
+
+path_t = "Resin_plates/tri.png"
+image_t=Image.open(path_t)
+mask_t=np.array(image_t)
+#print(mask_t.shape)
+
+print("Masks are loaded")
+
+# Assume video shape (1443, 480, 640)
+video_one = np.load(r_data[0])
+video_two = np.load(r_data[1])
+video_three = np.load(r_data[2])
+video_four = np.load(r_data[3])
+video_five = np.load(r_data[4])
+video_six = np.load(r_data[5])
+
+video_files = [video_one, video_two, video_three, video_four, video_five,video_six]  
+masks=[mask_c, mask_rec, mask_s, mask_rec]
+sampling_rate=28
+
+# %% preprocessing (TSR)
+
+#define TSR
+def TSR(video):
+    filtered_data=gaussian_filter(video,2)
+    log_normalized_data=np.log(filtered_data)
+    t = np.linspace(0.5, 1443*0.5, 1443)
+    log_t=np.log(t)
+    first=[]
+    second=[]
+    for i in range(video.shape[1]):
+        coeffs = np.polyfit(t, log_normalized_data[:,i], 4)
+        poly_fit = np.poly1d(coeffs)
+        log_temp_fitted = poly_fit(t)
+        first_derivative = np.gradient(log_temp_fitted, t)
+        second_derivative = np.gradient(first_derivative, t)
+        first.append(first_derivative)
+        second.append(second_derivative)
+        arr=np.array(first)
+    first_dev=arr.T
+    arr2=np.array(second)
+    second_dev=arr2.T
+    return first_dev.reshape(-1, 480, 640), second_dev.reshape(-1, 480, 640)
+
+
+# apply TSR
+video_channels=[]
+frames=[]
+first_frames=[]
+second_frames=[]
+for video in video_files:
+    first,second=TSR(video)
+    original=video.reshape(-1, 480, 640)
+    sampled_frames = original[::sampling_rate]
+    sampled_first_frames = first[::sampling_rate]
+    sampled_second_frames = second[::sampling_rate] 
+    frames.append(sampled_frames)
+    first_frames.append(sampled_first_frames)
+    second_frames.append(sampled_second_frames)
+    channels=[original,first,second]
+    video_channels.append(channels)
+    
+all_og_frames=[item for sublist in frames for item in sublist]
+all_first_dev_frames=[item for sublist in first_frames for item in sublist]
+all_second_dev_frames=[[item for sublist in second_frames for item in sublist]]
+
+print("Channels are loaded")
+
+
+
+

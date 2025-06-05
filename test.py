@@ -1,6 +1,5 @@
-from CompositePlate import *
-from Masks import *
-from ResinPlates import *
+from Resin_plates import *
+from data import *
 import numpy as np
 import glob
 import os
@@ -25,63 +24,74 @@ from transformers import Trainer, TrainingArguments
 from transformers import SegformerForSemanticSegmentation, SegformerFeatureExtractor
 import piq
 from torchmetrics.functional import structural_similarity_index_measure as ssim
+import torch.nn.functional as F
+from torchmetrics import JaccardIndex
+from segmentation_models_pytorch.losses import DiceLoss
 
 
-
-
-
-
-resin_folder="CompositePlate"
+resin_folder="data"
 r_data=glob.glob(os.path.join(resin_folder,"*.npy"))
 resin_data=[]
 print("a is done")
 
-
-path = "Masks/Resin plates/circular.png"
+path = "Resin_plates/circular.png"
 image=Image.open(path)
-mask=np.array(image)
-#print(mask.shape)
+mask_c=np.array(image)
+#print(mask_c.shape)
+
+path_c = "Resin_plates/rec.png"
+image_c=Image.open(path_c)
+mask_rec=np.array(image_c)
+#print(mask_rec.shape)
+
+path_s = "Resin_plates/square.png"
+image_s=Image.open(path_s)
+mask_s=np.array(image_s)
+#print(mask_s.shape)
+
+path_t = "Resin_plates/tri.png"
+image_t=Image.open(path_t)
+mask_t=np.array(image_t)
+#print(mask_t.shape)
+
+print("Masks are loaded")
 
 # Assume video shape (1443, 480, 640)
 video_one = np.load(r_data[0]).reshape(-1, 480, 640)
-second=np.load(r_data[1])
-#print(second.shape)
-video_two= np.load(r_data[1]).reshape(-1, 480, 640)
+video_two = np.load(r_data[1]).reshape(-1, 480, 640)
+video_three = np.load(r_data[2]).reshape(-1,480, 640)
+video_four = np.load(r_data[3]).reshape(-1,480, 640)
+video_five = np.load(r_data[4]).reshape(-1,480, 640)
+video_six = np.load(r_data[5]).reshape(-1,480, 640)
 
+video_files = [video_one, video_two, video_three, video_four, video_five,video_six]  
+masks=[mask_c, mask_rec, mask_s, mask_rec]
+frames=[]
 
+print("videos are loaded")
 
-# Calculate min/max temps for normalization (per video)
-TEMP_MIN = video_one.min()
-TEMP_MAX = video_one.max()
+for video in video_files:
+    sampling_rate = 28
+    sampled_frames = video[::sampling_rate]
+    frames.append(sampled_frames)
+print(f" First dimension is {len(frames)}")
+print(f" Second dimension is {len(frames[0])}")
 
-sampling_rate = 5
-sampled_frames = video_one[::sampling_rate]
-sampled_frames=sampled_frames[:288]
-#print(len(sampled_frames))
-#print(sampled_frames[0])
+all_frames=[item for sublist in frames for item in sublist]
+print(f"Total number of frames is {len(all_frames)}")
 
+###########################################################################
 INPUT_SIZE = 512 
-
-
-
-############################################################################
-video_files = [video_one, video_two]  
-mask_files = [mask, mask]   
-
 temp_min = 20.82
 temp_max = 31.68
-sampling_rate = 5
 input_size = 256
 batch_size = 16
-num_epochs = 10
+num_epochs = 15
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-#print(sampled_frames[0])
-
-
-def preprocess(frame):
-    norm_frame = (frame - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)
+def preprocess(frame, min, max):
+    norm_frame = (frame - np.min(frame)) / (max - min)
 #print(f"After normalization: {norm_frame}")
     norm_frame = np.clip(norm_frame, 0, 1)
 #print(f"After clipping: {norm_frame}")
@@ -96,11 +106,9 @@ def preprocess(frame):
 #print(len(rgb[0]))
     return pil_img
 
-print(preprocess(sampled_frames[0]))
+#print(preprocess(sampled_frames[0]))
 
 model_name = "nvidia/segformer-b0-finetuned-ade-512-512"
-batch_size = 16
-num_epochs = 5
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 feature_extractor = SegformerFeatureExtractor.from_pretrained(model_name)
 model = SegformerForSemanticSegmentation.from_pretrained(model_name, num_labels=2,ignore_mismatched_sizes=True)
@@ -112,25 +120,38 @@ model.decode_head.classifier = nn.Conv2d(
 model.to(device)
 #print(model)
 
-label = Image.fromarray(mask.astype(np.uint8))
-mask_resized = label.resize((512, 512), resample=Image.NEAREST)
-label_tensor = torch.tensor(np.array(mask_resized), dtype=torch.long)
-label_tensor=label_tensor.unsqueeze(0)
+def label_tensor(mask):
+    label = Image.fromarray(mask.astype(np.uint8))
+    mask_resized = label.resize((512, 512), resample=Image.NEAREST) 
+    label_tensor = torch.tensor(np.array(mask_resized), dtype=torch.long)
+    label_tensor=label_tensor.unsqueeze(0)
+    return label_tensor
 
-def dataset(frames):
+circle=label_tensor(mask_c)
+rec=label_tensor(mask_rec)
+square=label_tensor(mask_s)
+tri=label_tensor(mask_t)
+
+def dataset(frames, video):
     list_frames=[]
     for f in frames:
-        pr_frame=preprocess(f)
+        pr_frame=preprocess(f, video.min(), video.max())
         list_frames.append(pr_frame)
     encoded_frames=feature_extractor(list_frames, return_tensors="pt")
-    encoded_frames["labels"] = label_tensor.repeat(len(frames), 1, 1) 
-        
+    v1 = circle.repeat(48, 1, 1) 
+    v2 = circle.repeat(48, 1, 1)
+    v3 =  rec.repeat(48, 1, 1) 
+    v4 = square.repeat(48, 1, 1)
+    v5 = square.repeat(48, 1, 1)
+    v6 = tri.repeat(48, 1, 1) 
+    all_labels = torch.cat([v1, v2, v3, v4, v5, v6], dim=0)
+    encoded_frames["labels"]=all_labels
     return encoded_frames
 
-result=dataset(sampled_frames)
-print(result["pixel_values"].shape)
-print(result["labels"].shape)
-print(result)
+#result=dataset(sampled_frames)
+#print(result["pixel_values"].shape)
+#print(result["labels"].shape)
+#print(result)
 
 
 class ImageDataset(Dataset):
@@ -147,32 +168,45 @@ class ImageDataset(Dataset):
             'labels': self.labels[idx]
         }
 
-
-
 optimizer = AdamW(model.parameters(), lr=5e-5)
 
 model.train()
-unloaded_dataset=dataset(sampled_frames)
+    
+
+unloaded_dataset=dataset(all_frames, video_one)
 train_dataset = ImageDataset(unloaded_dataset['pixel_values'], unloaded_dataset['labels'])
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
 for epoch in range(num_epochs):
     total_loss = 0
+    counter=1
     for batch in train_loader:
         pixel_values = batch["pixel_values"].to(device) # (B, 3, H, W)
-        print(f"pixel values are {pixel_values}")
+        #print(f"pixel values are {pixel_values.shape}")
         labels = batch["labels"].to(device)# (B, H, W)
-        print(f"labels are {labels}")
+        #print(f"labels are {labels.shape}")
         outputs = model(pixel_values=pixel_values, labels=labels)
-        print(f"outputs are {outputs}")
+        #print(f"outputs are {outputs.shape}")
         logits=outputs.logits
-        print(f"logits are {logits}")
-        loss = 1- ssim(logits,labels)
-        print(f"loss is {loss}")
+        logits_upsampled = F.interpolate(logits, size=(512, 512), mode='bilinear', align_corners=False)
+        #preds = logits_upsampled.argmax(dim=1)
+        #print(f"logits are {logits.shape}")
+        #loss = 1- ssim(logits_upsampled,labels)
+        metric=nn.CrossEntropyLoss(reduction="mean")
+        loss=metric(logits_upsampled,labels)
+        #print(f"loss is {loss}")
+        print(f"Batch {counter} of Epoch {epoch+1} - loss is {loss}")
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
+        counter+=1
         total_loss += loss.item()
 
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {total_loss/len(sampled_frames):.4f}")
+    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {total_loss/18:.4f}")
+#model.save_pretrained("C:/Users/bella/OneDrive - TU Eindhoven/segformer/segformer_15_circular_16")
+torch.save(model.state_dict(), "segformer_weights_for_15_epochs_all.pth")
+
+
+
+
+
