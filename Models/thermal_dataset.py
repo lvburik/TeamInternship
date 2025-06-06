@@ -1,6 +1,5 @@
 import sys
 import os
-import torch
 import numpy as np
 from torch.utils.data import Dataset
 from matplotlib import pyplot as plt
@@ -98,19 +97,20 @@ class ThermalDataset(Dataset):
         if self.extract_patches:
             data, mask = extract_patches(data, mask, patch_size=4)
             data = data.T
-            print("extracted patches shape: ", data.shape)
-            print("extracted patches mask shape: ", mask.shape)
         
         if self.extract_cnn_patches:
-            data, mask = extract_cnn_patches(data, mask, patch_size=128, overlap=0.7, neg_patch_prob=1)
-            #print("extracted cnn patches shape: ", data.shape)
-            #print("extracted cnn patches mask shape: ", mask.shape)
+            # pass in data.T if extract from fftpca data!
+            data, mask = extract_cnn_patches(data, mask, patch_size=32, 
+                                             overlap=0.5, neg_patch_prob=1, augment=False)
         
         if self.apply_PCA:
-            data = apply_PCA_SVD(data, num_components=10)
-            print("PCA data shape: ", data.shape)
+            if self.extract_cnn_patches:
+                data = apply_PCA_patches(data, num_components=10)
+            else:
+                data = apply_PCA_SVD(data, num_components=10)
         
         data = np.abs(data)
+        #data = standardize(data)
         return data, mask
         
 

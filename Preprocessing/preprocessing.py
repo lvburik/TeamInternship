@@ -1,7 +1,5 @@
-import os
 import numpy as np
 from scipy.fftpack import fft, fftfreq
-import matplotlib.pyplot as plt
 
 def apply_fft(data, t):
     # compute fast fourier transform
@@ -49,9 +47,10 @@ def extract_patches(data, mask, patch_size=16):
 
     return np.array(patches), np.array(labels)
 
-def extract_cnn_patches(data, mask, patch_size=128, overlap=0, neg_patch_prob=1.0):
+def extract_cnn_patches(data, mask, patch_size=128, overlap=0, neg_patch_prob=1.0, augment=False):
     # reshape into (480, 640, num_freqs)
-    data = data.T.reshape(480, 640, data.shape[0])
+    height, width = 480, 640
+    data = data.T.reshape(height, width, data.shape[0])
 
     stride = int(patch_size - overlap * patch_size)
 
@@ -59,18 +58,55 @@ def extract_cnn_patches(data, mask, patch_size=128, overlap=0, neg_patch_prob=1.
     labels = []
     
     # extract overlapping patches and their labels
-    for i in range(0, 480-patch_size+1, stride):
-        for j in range(0, 640-patch_size+1, stride):
+    for i in range(0, height-patch_size+1, stride):
+        for j in range(0, width-patch_size+1, stride):
+            
             patch = data[i:i+patch_size, j:j+patch_size]
             patch_mask = mask[i:i+patch_size, j:j+patch_size]
-            if patch_mask.sum() > 0:
+            
+            if patch_mask.sum() / (patch_size * patch_size) > 0.05:
                 # prioritize patches with defects
                 patches.append(patch)
                 labels.append(patch_mask)
+                
+                if augment:
+                    # apply augmentation
+                    for _ in range(np.random.randint(1, 4)):
+                        patch, patch_mask = augment_patch(patch, patch_mask)
+                        patches.append(patch)
+                        labels.append(patch_mask)
             elif np.random.random() < neg_patch_prob:
                 # randomly include some patches with no defects
                 patches.append(patch)
                 labels.append(patch_mask)
+
+    # handle bottom edge
+    if (height - patch_size) % stride != 0:
+        i = height - patch_size
+        for j in range(0, width - patch_size + 1, stride):
+            patch = data[i:i + patch_size, j:j + patch_size]
+            patch_mask = mask[i:i + patch_size, j:j + patch_size]
+            if patch_mask.sum() > 0 or np.random.random() < neg_patch_prob:
+                patches.append(patch)
+                labels.append(patch_mask)
+
+    # handle right edge
+    if (width - patch_size) % stride != 0:
+        j = width - patch_size
+        for i in range(0, height - patch_size + 1, stride):
+            patch = data[i:i + patch_size, j:j + patch_size]
+            patch_mask = mask[i:i + patch_size, j:j + patch_size]
+            if patch_mask.sum() > 0 or np.random.random() < neg_patch_prob:
+                patches.append(patch)
+                labels.append(patch_mask)
+
+    # bottom-right corner
+    i, j = height - patch_size, width - patch_size
+    patch = data[i:i + patch_size, j:j + patch_size]
+    patch_mask = mask[i:i + patch_size, j:j + patch_size]
+    if patch_mask.sum() > 0 or np.random.random() < neg_patch_prob:
+        patches.append(patch)
+        labels.append(patch_mask)
 
     return np.array(patches), np.array(labels)
 
@@ -85,9 +121,38 @@ def apply_PCA_SVD(X, num_components):
     eigenvector_subset = Vt[:num_components, :]  # shape: (num_components, 307200)
     
     # project data onto the new subspace
-    X_reduced = np.dot(X_centered, eigenvector_subset.T)  # Shape: (301, num_components)
+    X_reduced = np.dot(X_centered, eigenvector_subset.T)
     
     return X_reduced
 
+def apply_PCA_patches(patches, num_components):
+    P, H, W, F = patches.shape
+
+    # reshape to (P*H*W, F)
+    flat = patches.reshape(-1, F)
+
+    # apply your PCA function
+    reduced_flat = apply_PCA_SVD(flat, num_components)  # shape: (P*H*W, num_components)
+
+    # reshape back to (, H, W, num_components)
+    reduced = reduced_flat.reshape(P, H, W, num_components)
+    return reduced
+
+def augment_patch(patch, mask):
+    # apply random horizontal flip
+    if np.random.random() < 0.5:
+        patch = np.flip(patch, axis=1)
+        mask = np.flip(mask, axis=1)
+
+    # apply random vertical flip    
+    if np.random.random() < 0.5:
+        patch = np.flip(patch, axis=0)
+        mask = np.flip(mask, axis=0)
+    # apply random rotation
+    k = np.random.choice([0, 1, 2, 3])
+    patch = np.rot90(patch, k=k, axes=(0, 1))
+    mask = np.rot90(mask, k=k, axes=(0, 1))
+
+    return patch, mask
 
 
