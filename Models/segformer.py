@@ -20,30 +20,43 @@ from train_model import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 TRAIN_DATA = [
-    "Composite plate/new_2_lamps_left_off.npy",
-    "Composite plate/new_2_lamps_right_off.npy",
-    "Composite plate/new_2_lamps_top_off.npy",
-    "Composite plate/new_3_lamps.npy",
-    "Resin plates/circular_1_lamp_left_on.npy",
-    "Resin plates/circular_1_lamp_right_on.npy",
-    "Resin plates/circular_1_lamp_top_on.npy",
-    "Resin plates/circular_2_lamps_left_off.npy",
-    "Resin plates/circular_3_lamps.npy",
-    "Resin plates/rec_1_lamp_left_on.npy",
-    "Resin plates/rec_1_lamp_right_on.npy",
-    "Resin plates/rec_2_lamps_left_off.npy",
-    "Resin plates/rec_2_lamps_right_off.npy",
-    "Resin plates/rec_2_lamps_top_off.npy",                
-    "Resin plates/square_1_lamp_left_on.npy",
-    "Resin plates/square_1_lamp_right_on.npy",
-    "Resin plates/square_1_lamp_top_on.npy",                   
-    "Resin plates/square_2_lamps_top_off.npy",
-    "Resin plates/square_3_lamps.npy",
-    "Resin plates/triangular_1_lamp_left_on.npy",              
-    "Resin plates/triangular_1_lamp_top_on.npy",            
-    "Resin plates/triangular_2_lamps_right_off.npy",
-    "Resin plates/triangular_2_lamps_top_off.npy",
-    "Resin plates/triangular_3_lamps.npy"]
+    "raw data/Composite plate/new_1_lamp_left_on.npy",
+    "raw data/Composite plate/new_1_lamp_right_on.npy",
+    "raw data/Composite plate/new_1_lamp_top_on.npy",
+    "raw data/Composite plate/new_2_lamps_left_off.npy",
+    "raw data/Resin plates/circular_1_lamp_left_on.npy",
+    "raw data/Resin plates/circular_1_lamp_right_on.npy",
+    "raw data/Resin plates/circular_1_lamp_top_on.npy",
+    "raw data/Resin plates/circular_2_lamps_left_off.npy",
+    "raw data/Resin plates/circular_3_lamps.npy",
+    "raw data/Resin plates/rec_1_lamp_left_on.npy",
+    "raw data/Resin plates/rec_1_lamp_right_on.npy",
+    "raw data/Resin plates/rec_2_lamps_left_off.npy",
+    "raw data/Resin plates/rec_2_lamps_right_off.npy",
+    "raw data/Resin plates/rec_2_lamps_top_off.npy",                
+    "raw data/Resin plates/square_1_lamp_left_on.npy",
+    "raw data/Resin plates/square_1_lamp_right_on.npy",
+    "raw data/Resin plates/square_1_lamp_top_on.npy",                   
+    "raw data/Resin plates/square_2_lamps_top_off.npy",
+    "raw data/Resin plates/square_3_lamps.npy",
+    "raw data/Resin plates/triangular_1_lamp_left_on.npy",              
+    "raw data/Resin plates/triangular_1_lamp_top_on.npy",            
+    "raw data/Resin plates/triangular_2_lamps_right_off.npy",
+    "raw data/Resin plates/triangular_2_lamps_top_off.npy",
+    "raw data/Resin plates/triangular_3_lamps.npy"]
+
+TEST_DATA = [
+    "raw data/Composite plate/new_2_lamps_right_off.npy",
+    "raw data/Composite plate/new_2_lamps_top_off.npy",
+    "raw data/Composite plate/new_3_lamps.npy",
+    "raw data/Resin plates/circular_2_lamps_right_off.npy",
+    "raw data/Resin plates/circular_2_lamps_top_off.npy",
+    "raw data/Resin plates/rec_1_lamp_top_on.npy",
+    "raw data/Resin plates/rec_3_lamps.npy",
+    "raw data/Resin plates/square_2_lamps_left_off.npy",
+    "raw data/Resin plates/square_2_lamps_right_off.npy",
+    "raw data/Resin plates/triangular_1_lamp_right_on.npy",
+    "raw data/Resin plates/triangular_2_lamps_left_off.npy"]
 
 def preprocess(frame, min, max):
     norm_frame = (frame - min) / (max - min)
@@ -52,53 +65,20 @@ def preprocess(frame, min, max):
     img = Image.fromarray(norm_frame)
     return img.convert("RGB")
 
-
-def main(sim_data_path, exp_data_path):
-    
-    train_dataset = ThermalDataset(
-        file_paths=TRAIN_DATA,
-        data_dir=exp_data_path, 
-        mask_map=MASK_MAP,
-    )
-
-    test_dataset = ThermalDataset(
-        file_paths=TEST_DATA,
-        data_dir=exp_data_path, 
-        mask_map=MASK_MAP,
-    )
-
-    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
-    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-
-    # sample frames
-
-    model_name = "nvidia/segformer-b0-finetuned-ade-512-512"
-    feature_extractor = SegformerFeatureExtractor.from_pretrained(model_name)
-    model = SegformerForSemanticSegmentation.from_pretrained(model_name, num_labels=2,ignore_mismatched_sizes=True)
-    model.decode_head.classifier = nn.Conv2d(
-        in_channels=256,
-        out_channels=2,  # number of classes you want
-        kernel_size=1
-    )
-    model.to(device)
-
+def train_segformer(model, feature_extractor, dataloader, num_epochs=15):
+    modelname = "segformer_50ep"
     criterion = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=5e-5)
     model.train()
-
-    for epoch in range(15):
+    losses = []
+    for epoch in range(50):
         total_loss = 0
         counter=1
-        for (X_batch, y_batch) in train_dataloader:
-            print(f"Batch {counter} of Epoch {epoch+1}")
-            print(f"X_batch is {X_batch.shape}") # (frames, 307200)
-            print(f"y_batch is {y_batch.shape}")
+        for (X_batch, y_batch) in dataloader:
 
             X_batch = X_batch.to(device).squeeze(0)  # (1, frames, 480, 640)
             X_batch = X_batch.reshape(-1, 480, 640)
             y_batch = y_batch.to(device).squeeze(0)
-
-            print(f"X_batch after reshape is {X_batch.shape}")
 
             frames = X_batch[::28]
 
@@ -130,11 +110,100 @@ def main(sim_data_path, exp_data_path):
             print(f"Loss: {loss.item():.4f}")
             total_loss += loss.item()
             counter += 1
-
+        losses.append(total_loss / counter)
         print(f"Epoch {epoch+1}, Average Loss: {total_loss/counter:.4f}")
 
-    torch.save(model.state_dict(), "segformer_15ep.pth")
+    torch.save(model.state_dict(), f"{modelname}.pth")
+    print(f"{modelname} saved")
 
+    plt.figure()
+    plt.plot(range(1, num_epochs + 1), losses)
+    plt.xlabel("epoch")
+    plt.ylabel("loss")
+    plt.title("training loss")
+
+    plt.savefig(f"training_loss_{modelname}.png")
+    plt.close()
+
+    return model
+
+def test_segformer(model, feature_extractor, dataloader):
+    y_true = []
+    y_pred = []
+    with torch.no_grad():
+        for X_batch, y_batch in dataloader:
+            # format for model
+            X_batch = X_batch.to(device).squeeze(0)
+            X_batch = X_batch.reshape(-1, 480, 640)
+            y_batch = y_batch.to(device).squeeze(0)
+            
+            frames = X_batch[::28]
+
+            # preprocess and convert to list of PIL images
+            preprocessed = [preprocess(frame, X_batch.min(), X_batch.max()) for frame in frames]
+
+            # convert to model input
+            encoded = feature_extractor(preprocessed, return_tensors="pt")
+            pixel_values = encoded["pixel_values"].to(device)
+
+            # convert to PIL, resize label, repeat for batch, convert to tensor
+            y_np = y_batch.cpu().numpy().astype(np.uint8)
+            label_img = Image.fromarray(y_np)
+            label_resized = label_img.resize((512, 512), resample=Image.NEAREST)
+            label_tensor = torch.tensor(np.array(label_resized), dtype=torch.long).to(device)
+            labels = label_tensor.unsqueeze(0).repeat(len(frames), 1, 1)  # shape: (B, H, W)
+            
+            # obtain predictions
+            outputs = model(pixel_values=pixel_values)
+            logits = outputs.logits
+            logits_upsampled = F.interpolate(logits, size=(512, 512), mode="bilinear", align_corners=False)
+            preds = logits_upsampled.argmax(dim=1)
+
+            # Flatten and store
+            y_true.append(labels.view(-1).cpu().numpy())
+            y_pred.append(preds.view(-1).cpu().numpy())
+    y_true = np.concatenate(y_true)
+    y_pred = np.concatenate(y_pred)
+    evaluate(y_true, y_pred)
+
+def main(sim_data_path, exp_data_path):
+    
+    train_dataset = ThermalDataset(
+        file_paths=TRAIN_DATA,
+        data_dir=exp_data_path, 
+        mask_map=MASK_MAP,
+    )
+
+    test_dataset = ThermalDataset(
+        file_paths=TEST_DATA,
+        data_dir=exp_data_path, 
+        mask_map=MASK_MAP,
+    )
+
+    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+
+    # sample frames
+
+    model_name = "nvidia/segformer-b0-finetuned-ade-512-512"
+    feature_extractor = SegformerFeatureExtractor.from_pretrained(model_name)
+    model = SegformerForSemanticSegmentation.from_pretrained(model_name, num_labels=2,ignore_mismatched_sizes=True)
+    model.decode_head.classifier = nn.Conv2d(
+        in_channels=256,
+        out_channels=2,  # number of classes you want
+        kernel_size=1
+    )
+    model.to(device)
+
+    print("training segformer...")
+    model = train_segformer(model, feature_extractor, train_dataloader, num_epochs=50)
+    
+    """weights_path = "segformer_15ep.pth"
+    state_dict = torch.load(weights_path, map_location="cpu")
+    model.load_state_dict(state_dict)"""
+
+    print("testing segformer...")
+    test_segformer(model, feature_extractor, test_dataloader)
 
 if __name__ == "__main__":
     # read file path for data
