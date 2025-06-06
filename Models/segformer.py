@@ -20,10 +20,6 @@ from train_model import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 TRAIN_DATA = [
-    "ResinPlates/rec_1_lamp_top_on.npy",
-    "ResinPlates/rec_2_lamps_left_off.npy",
-    "ResinPlates/rec_2_lamps_top_off.npy",
-]
     "Composite plate/new_2_lamps_left_off.npy",
     "Composite plate/new_2_lamps_right_off.npy",
     "Composite plate/new_2_lamps_top_off.npy",
@@ -70,7 +66,6 @@ def main(sim_data_path, exp_data_path):
         data_dir=exp_data_path, 
         mask_map=MASK_MAP,
     )
-
 
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
     train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
