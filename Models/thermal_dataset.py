@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import numpy as np
 from torch.utils.data import Dataset
 from matplotlib import pyplot as plt
@@ -11,12 +12,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Preprocessing.preprocessing import *
 
 class ThermalDataset(Dataset):
-    def __init__(self, file_paths, data_dir, mask_map, center_data=False,
+    def __init__(self, file_paths, data_dir, mask_map=None, sim=False, mask_dir=None, center_data=False,
                  add_zero_padding=False, apply_fft=False, cutoff_frequency=1,
                  apply_PCA=False, extract_patches=False, extract_cnn_patches=False):
         
         self.file_paths = file_paths                    # list of file paths within data_dir
-        self.data_dir = data_dir                        # path to data directory    
+        self.data_dir = data_dir                        # path to data directory 
+        self.sim = sim                                  # whether the dataset is a simulation dataset 
+        self.mask_dir = mask_dir                        # path to mask directory (for simulation dataset)  
         self.center_data = center_data                  # center the data
         self.add_zero_padding = add_zero_padding        # zeropad time series
         self.apply_fft = apply_fft                      # apply fft to data
@@ -38,22 +41,35 @@ class ThermalDataset(Dataset):
         data = np.load(file_path, mmap_mode='r').copy()
         #print(f"loaded {self.file_paths[idx]}")
         #print("data shape: ", data.shape)
+        
+         # load corresponding mask (labels)
+        if self.sim:
+            file_name = os.path.basename(file_path)
 
-        # load corresponding mask (labels)
-        file_name = os.path.basename(file_path)
-        if "Composite" in file_path:
-            mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["composite"])
-        elif "Resin" in file_path:
-            if "circular" in file_name:
-                mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["circular"])
-            elif "rec" in file_name:
-                mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["rec"])
-            elif "square" in file_name:
-                mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["square"])
-            elif "tri" in file_name:
-                mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["tri"])
+            match = re.search(r'_(\d+)\.npy$', file_name)
+            
+            sim_number = int(match.group(1))
+            mask_filename = f"mask_{sim_number:02}.png"
+
+            mask_path = os.path.join(self.mask_dir, mask_filename)
+            if not os.path.exists(mask_path):
+                raise FileNotFoundError(f"Mask not found: {mask_path}")
+            
         else:
-            raise ValueError(f"Unknown file path: {file_name}")
+            file_name = os.path.basename(file_path)
+            if "Composite" in file_path:
+                mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["composite"])
+            elif "Resin" in file_path:
+                if "circular" in file_name:
+                    mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["circular"])
+                elif "rec" in file_name:
+                    mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["rec"])
+                elif "square" in file_name:
+                    mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["square"])
+                elif "tri" in file_name:
+                    mask_path = os.path.join(self.data_dir, "Masks", self.mask_mapping["tri"])
+            else:
+                raise ValueError(f"Unknown file path: {file_name}")
         
         # load mask (labels)
         mask = Image.open(mask_path).convert('L')  # convert to grayscale
