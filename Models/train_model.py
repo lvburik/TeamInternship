@@ -1,5 +1,4 @@
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
-from nns import *
 
 # define experimental training data set
 TRAIN_DATA = [
@@ -42,11 +41,12 @@ TEST_DATA = [
     "fft data/Resin/triangular_1_lamp_right_on_fft.npy",
     "fft data/Resin/triangular_2_lamps_left_off_fft.npy"]
 
+
 # for loading pca data
-"""TRAIN_DATA = [f.replace('fft data', 'fftpca data') for f in TRAIN_DATA]
+TRAIN_DATA = [f.replace('fft data', 'fftpca data') for f in TRAIN_DATA]
 TEST_DATA = [f.replace('fft data', 'fftpca data') for f in TEST_DATA]
 TRAIN_DATA = [f.replace('_fft', '_fftpca') for f in TRAIN_DATA]
-TEST_DATA = [f.replace('_fft', '_fftpca') for f in TEST_DATA]"""
+TEST_DATA = [f.replace('_fft', '_fftpca') for f in TEST_DATA]
 
 # define experimental labels
 MASK_MAP = {
@@ -56,6 +56,52 @@ MASK_MAP = {
         "tri" : "Resin plates/tri.png",
         "composite" : "Composite plate/composite plate mask.png"
 } 
+
+# define simulation training and test data
+TRAIN_SIM_DATA = [
+    "raw data/sim1_circular_heat5_5_1.npy",
+    "raw data/sim1_circular_heat5_5_2.npy",
+    "raw data/sim1_circular_heat5_5_1.npy",
+    "raw data/sim1_circular_heat5_5_2.npy",
+    "raw data/sim1_circular_heat5_5_3.npy",
+    "raw data/sim1_circular_heat5_5_4.npy",
+    "raw data/sim1_circular_heat5_5_5.npy",
+    "raw data/sim1_circular_heat5_5_6.npy",
+    "raw data/sim1_circular_heat5_5_7.npy",
+    "raw data/sim1_circular_heat5_5_8.npy",
+    "raw data/sim1_circular_heat5_5_9.npy",
+    "raw data/sim1_circular_heat5_5_10.npy",
+    "raw data/sim1_circular_heat5_5_11.npy",
+    "raw data/sim1_circular_heat10_1.npy",
+    "raw data/sim1_circular_heat10_2.npy",
+    "raw data/sim1_circular_heat10_3.npy",
+    "raw data/sim1_circular_heat10_4.npy",
+    "raw data/sim1_circular_heat10_5.npy",
+    "raw data/sim1_circular_heat10_6.npy",
+    "raw data/sim1_circular_heat10_7.npy",
+    "raw data/sim1_circular_heat10_8.npy",
+    "raw data/sim1_circular_heat10_9.npy",
+    "raw data/sim1_circular_heat10_10.npy",
+]
+
+TEST_SIM_DATA = [
+    "raw data/sim1_circular_heat5_5_12.npy",
+    "raw data/sim1_circular_heat5_5_13.npy",
+    "raw data/sim1_circular_heat5_5_14.npy",
+    "raw data/sim1_circular_heat5_5_15.npy",
+    "raw data/sim1_circular_heat5_5_16.npy",
+    "raw data/sim1_circular_heat5_5_17.npy",
+    "raw data/sim1_circular_heat10_11.npy",
+    "raw data/sim1_circular_heat10_12.npy",
+    "raw data/sim1_circular_heat10_13.npy",
+    "raw data/sim1_circular_heat10_14.npy",
+    "raw data/sim1_circular_heat10_15.npy",
+    "raw data/sim1_circular_heat10_16.npy",
+    "raw data/sim1_circular_heat10_17.npy",
+]
+
+
+mask_dir = "masks/"
 
 def evaluate(y_true, y_pred):
     # calculate evaluation metrics
