@@ -65,7 +65,7 @@ video_six = np.load(r_data[5])
 
 video_files = [video_one, video_two, video_three, video_four, video_five,video_six]  
 masks=[mask_c, mask_rec, mask_s, mask_rec]
-sampling_rate=28
+sampling_rate=200
 
 # %% preprocessing (TSR)
 
@@ -73,7 +73,11 @@ sampling_rate=28
 def TSR(video):
     filtered_data=gaussian_filter(video,2)
     log_normalized_data=np.log(filtered_data)
-    t = np.linspace(0.5, 1443*0.5, 1443)
+    print(log_normalized_data.shape)
+    d=log_normalized_data.shape[0]
+    print(d)
+    t = np.linspace(0.5, d*0.5, d)
+    print(t.shape)
     log_t=np.log(t)
     first=[]
     second=[]
@@ -114,6 +118,139 @@ all_first_dev_frames=[item for sublist in first_frames for item in sublist]
 all_second_dev_frames=[[item for sublist in second_frames for item in sublist]]
 
 print("Channels are loaded")
+print(f"Number of frames is {len(all_og_frames)}")
+print(f"Number of sampled frames per video is {len(first_frames[0])}")
+
+
+# %%
+INPUT_SIZE = 512 
+temp_min = 20.82
+temp_max = 31.68
+batch_size = 16
+num_epochs = 15
+
+
+def preprocess(og_frame, first_dev, second_dev):
+    norm_frame = (og_frame - np.min(norm_frame)) / (np.max(og_frame) - np.min(og_frame))
+    norm_first = (first_dev - np.min(first_dev)) / (np.max(first_dev) - np.min(first_dev))
+    norm_second = (second_dev - np.min(second_dev)) / (np.max(second_dev) - np.min(second_dev))
+#print(f"After normalization: {norm_frame}")
+    norm_frame = np.clip(norm_frame, 0, 1)
+    norm_first = np.clip(norm_first, 0, 1)
+    norm_frame = np.clip(norm_second, 0, 1)
+#print(f"After clipping: {norm_frame}")
+    norm_frame=norm_frame.astype(np.float32)
+    norm_first=norm_first.astype(np.float32)
+    norm_second=norm_second.astype(np.float32)
+#print(f"New one: {norm_frame}")
+    norm_frame=np.squeeze(norm_frame)
+    norm_first=np.squeeze(norm_first)
+    norm_second=np.squeeze(norm_second)
+    #rgb = plt.cm.jet(norm_frame)[:, :,:3]
+    rgb = np.stack((norm_frame,norm_first,norm_second), axis=-1)  # Shape: (H, W, 3)
+    norm_frame_uint8 = (rgb * 255).astype(np.uint8) 
+    pil_img = Image.fromarray(norm_frame_uint8)
+#print(rgb)
+#print(len(rgb))
+#print(len(rgb[0]))
+    return pil_img
+
+model_name = "nvidia/segformer-b0-finetuned-ade-512-512"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+feature_extractor = SegformerFeatureExtractor.from_pretrained(model_name)
+model = SegformerForSemanticSegmentation.from_pretrained(model_name, num_labels=2,ignore_mismatched_sizes=True)
+model.decode_head.classifier = nn.Conv2d(
+    in_channels=256,
+    out_channels=2,  
+    kernel_size=1
+)
+model.to(device)
+#print(model)
+
+def label_tensor(mask):
+    label = Image.fromarray(mask.astype(np.uint8))
+    mask_resized = label.resize((512, 512), resample=Image.NEAREST) 
+    label_tensor = torch.tensor(np.array(mask_resized), dtype=torch.long)
+    label_tensor=label_tensor.unsqueeze(0)
+    return label_tensor
+
+circle=label_tensor(mask_c)
+rec=label_tensor(mask_rec)
+square=label_tensor(mask_s)
+tri=label_tensor(mask_t)
+
+def dataset(og_frames, first_dev, second_dev):
+    list_frames=[]
+    for i in range(len(og_frames)):
+        pr_frame=preprocess(og_frames[i],first_dev[i],second_dev[i] )
+        list_frames.append(pr_frame)
+    encoded_frames=feature_extractor(list_frames, return_tensors="pt")
+    v1 = circle.repeat(len(first_frames[0]), 1, 1) 
+    v2 = circle.repeat(len(first_frames[0]), 1, 1)
+    v3 =  rec.repeat(len(first_frames[0]), 1, 1) 
+    v4 = square.repeat(len(first_frames[0]), 1, 1)
+    v5 = square.repeat(len(first_frames[0]), 1, 1)
+    v6 = tri.repeat(len(first_frames[0]), 1, 1) 
+    all_labels = torch.cat([v1, v2, v3, v4, v5, v6], dim=0)
+    encoded_frames["labels"]=all_labels
+    return encoded_frames
+
+class ImageDataset(Dataset):
+    def __init__(self, pixel_values, labels):
+        self.pixel_values = pixel_values
+        self.labels = labels
+
+    def __len__(self):
+        return self.pixel_values.shape[0]
+
+    def __getitem__(self, idx):
+        return {
+            'pixel_values': self.pixel_values[idx],
+            'labels': self.labels[idx]
+        }
+
+optimizer = AdamW(model.parameters(), lr=5e-5)
+
+model.train()
+    
+
+unloaded_dataset=dataset(all_og_frames, all_first_dev_frames, all_second_dev_frames)
+train_dataset = ImageDataset(unloaded_dataset['pixel_values'], unloaded_dataset['labels'])
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+
+for epoch in range(num_epochs):
+    total_loss = 0
+    counter=1
+    for batch in train_loader:
+        pixel_values = batch["pixel_values"].to(device) # (B, 3, H, W)
+        #print(f"pixel values are {pixel_values.shape}")
+        labels = batch["labels"].to(device)# (B, H, W)
+        #print(f"labels are {labels.shape}")
+        outputs = model(pixel_values=pixel_values, labels=labels)
+        #print(f"outputs are {outputs.shape}")
+        logits=outputs.logits
+        logits_upsampled = F.interpolate(logits, size=(512, 512), mode='bilinear', align_corners=False)
+        #preds = logits_upsampled.argmax(dim=1)
+        #print(f"logits are {logits.shape}")
+        #loss = 1- ssim(logits_upsampled,labels)
+        metric=nn.CrossEntropyLoss(reduction="mean")
+        loss=metric(logits_upsampled,labels)
+        #print(f"loss is {loss}")
+        print(f"Batch {counter} of Epoch {epoch+1} - loss is {loss}")
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        counter+=1
+        total_loss += loss.item()
+
+    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {total_loss/18:.4f}")
+#model.save_pretrained("C:/Users/bella/OneDrive - TU Eindhoven/segformer/segformer_15_circular_16")
+torch.save(model.state_dict(), "segformer_weights_for_tsr_15_epochs_all.pth")
+
+
+
+
 
 
 
