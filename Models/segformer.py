@@ -1,24 +1,20 @@
+import sys
 import numpy as np
-import glob
-import os
 from PIL import Image
 import torch
-import os
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import torch.nn as nn
 from torch.optim import AdamW
 import matplotlib.pyplot as plt
 from transformers import SegformerForSemanticSegmentation, SegformerFeatureExtractor
-import piq
-from torchmetrics.functional import structural_similarity_index_measure as ssim
 import torch.nn.functional as F
 
-import sys
 from thermal_dataset import ThermalDataset
 from train_model import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# define training data paths within data dir
 TRAIN_DATA = [
     "raw data/Composite plate/new_1_lamp_left_on.npy",
     "raw data/Composite plate/new_1_lamp_right_on.npy",
@@ -45,6 +41,7 @@ TRAIN_DATA = [
     "raw data/Resin plates/triangular_2_lamps_top_off.npy",
     "raw data/Resin plates/triangular_3_lamps.npy"]
 
+# define test data paths within data dir
 TEST_DATA = [
     "raw data/Composite plate/new_2_lamps_right_off.npy",
     "raw data/Composite plate/new_2_lamps_top_off.npy",
@@ -58,6 +55,7 @@ TEST_DATA = [
     "raw data/Resin plates/triangular_1_lamp_right_on.npy",
     "raw data/Resin plates/triangular_2_lamps_left_off.npy"]
 
+# preprocess frames for model input
 def preprocess(frame, min, max):
     norm_frame = (frame - min) / (max - min)
     norm_frame = norm_frame.clamp(0, 1)
@@ -66,21 +64,21 @@ def preprocess(frame, min, max):
     return img.convert("RGB")
 
 def train_segformer(model, feature_extractor, dataloader, num_epochs=15):
-    modelname = "segformer_50ep"
+    modelname = "segformer_every10thframe_50ep"
+    
     criterion = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=5e-5)
     model.train()
     losses = []
-    for epoch in range(50):
+    for epoch in range(num_epochs):
         total_loss = 0
-        counter=1
         for (X_batch, y_batch) in dataloader:
 
             X_batch = X_batch.to(device).squeeze(0)  # (1, frames, 480, 640)
             X_batch = X_batch.reshape(-1, 480, 640)
             y_batch = y_batch.to(device).squeeze(0)
 
-            frames = X_batch[::28]
+            frames = X_batch[::20]
 
             # preprocess and convert to list of PIL images
             preprocessed = [preprocess(frame, X_batch.min(), X_batch.max()) for frame in frames]
@@ -96,7 +94,7 @@ def train_segformer(model, feature_extractor, dataloader, num_epochs=15):
             label_tensor = torch.tensor(np.array(label_resized), dtype=torch.long).to(device)
             labels = label_tensor.unsqueeze(0).repeat(len(frames), 1, 1)  # shape: (B, H, W)
 
-            # Forward pass
+            # obtain predictions
             outputs = model(pixel_values=pixel_values, labels=labels)
             logits = outputs.logits
             logits_upsampled = F.interpolate(logits, size=(512, 512), mode='bilinear', align_corners=False)
@@ -109,13 +107,15 @@ def train_segformer(model, feature_extractor, dataloader, num_epochs=15):
 
             print(f"Loss: {loss.item():.4f}")
             total_loss += loss.item()
-            counter += 1
-        losses.append(total_loss / counter)
-        print(f"Epoch {epoch+1}, Average Loss: {total_loss/counter:.4f}")
-
+        avg_loss = total_loss / len(dataloader)
+        losses.append(avg_loss)
+        print(f"Epoch {epoch+1}, Average Loss: {avg_loss:.4f}")
+    
+    # save model
     torch.save(model.state_dict(), f"{modelname}.pth")
     print(f"{modelname} saved")
 
+    # save loss over epochs
     plt.figure()
     plt.plot(range(1, num_epochs + 1), losses)
     plt.xlabel("epoch")
@@ -159,32 +159,32 @@ def test_segformer(model, feature_extractor, dataloader):
             logits_upsampled = F.interpolate(logits, size=(512, 512), mode="bilinear", align_corners=False)
             preds = logits_upsampled.argmax(dim=1)
 
-            # Flatten and store
+            # flatten and store for evaluation
             y_true.append(labels.view(-1).cpu().numpy())
             y_pred.append(preds.view(-1).cpu().numpy())
     y_true = np.concatenate(y_true)
     y_pred = np.concatenate(y_pred)
+
     evaluate(y_true, y_pred)
 
 def main(sim_data_path, exp_data_path):
-    
+
     train_dataset = ThermalDataset(
         file_paths=TRAIN_DATA,
         data_dir=exp_data_path, 
-        mask_map=MASK_MAP,
+        mask_map = MASK_MAP,
     )
 
     test_dataset = ThermalDataset(
         file_paths=TEST_DATA,
         data_dir=exp_data_path, 
-        mask_map=MASK_MAP,
+        mask_map = MASK_MAP,
     )
 
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
     train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=True)
 
-    # sample frames
-
+    # initialize model
     model_name = "nvidia/segformer-b0-finetuned-ade-512-512"
     feature_extractor = SegformerFeatureExtractor.from_pretrained(model_name)
     model = SegformerForSemanticSegmentation.from_pretrained(model_name, num_labels=2,ignore_mismatched_sizes=True)
@@ -195,13 +195,16 @@ def main(sim_data_path, exp_data_path):
     )
     model.to(device)
 
+    # train model
     print("training segformer...")
     model = train_segformer(model, feature_extractor, train_dataloader, num_epochs=50)
     
+    # for loading existing model
     """weights_path = "segformer_15ep.pth"
     state_dict = torch.load(weights_path, map_location="cpu")
     model.load_state_dict(state_dict)"""
 
+    # testing model
     print("testing segformer...")
     test_segformer(model, feature_extractor, test_dataloader)
 
