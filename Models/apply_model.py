@@ -1,16 +1,13 @@
-import numpy as np
 import torch
 import joblib
-from torch.utils.data import DataLoader
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from thermal_dataset import ThermalDataset 
 from nns import *
-import math
 from train_model import *
 
-# choose 'rf' or 'xgb' or 'cnn' or 'unet' or 'smallunet'
-apply_model = 'unet'
+# choose 'rf' or 'cnn' or 'unet' or 'smallunet'
+apply_model = 'cnn'
 
 mask_map = {
         "circular" : "Resin plates/circular.png",
@@ -23,6 +20,7 @@ mask_map = {
 # define path to data
 data_dir = "/Users/kelseypenners/Library/CloudStorage/OneDrive-TUEindhoven/teaminternship/Experimental Data"
 
+# reconstruction of predicted frame from patch predictions
 def reconstruct_patches(pred_patches, patch_size=128, overlap=0):
     image_size = (480, 640)
     stride = int(patch_size * (1 - overlap))
@@ -90,27 +88,24 @@ for file_path in TEST_DATA:
     fft_data, mask = dataset[0]
 
     print(f"fft data shape: {fft_data.shape}")
-
-    # apply xgb model
-    if apply_model == 'xgb':
-        xgb = joblib.load("./Models/saved models/xgb.joblib")
-        preds = xgb.predict(fft_data.T)
-        pred_img = preds.reshape((480 , 640))
     
     # apply rf model
+    # rf_sampledpixels.joblib or rf_patches.joblib
     if apply_model == 'rf':
-        rf = joblib.load("./Models/saved models/rf_batch_rn.joblib")
-        preds = rf.predict(fft_data)
+        rf = joblib.load("./Models/saved models/rf_sampledpixels.joblib")
+        preds = rf.predict(fft_data.T)
         pred_img = preds.reshape((480 , 640))
 
+    # apply neural network models
+    # depending on input data, change number of in channels!
     if apply_model == 'cnn' or apply_model == 'unet' or apply_model == 'smallunet':
         if apply_model == 'unet':
             model = UNet(in_channels=10)
         if apply_model == 'cnn':
-            model = Network(n_in=10)
+            model = Network(n_in=103)
         if apply_model == 'smallunet':
             model = SmallerUNet(in_channels=10)
-        model.load_state_dict(torch.load("./Models/saved models/unet_smallpatches_pca_200.pth", map_location=torch.device('cpu')))
+        model.load_state_dict(torch.load("./Models/saved models/cnn_size64patches_400_nopca.pth", map_location=torch.device('cpu')))
         model.eval()
 
         with torch.no_grad():
@@ -119,11 +114,10 @@ for file_path in TEST_DATA:
             preds = model(fft_data)
             preds = torch.sigmoid(preds)
 
-            print(f"raw preds stats for {file_path}: min={preds.min().item()}, max={preds.max().item()}, mean={preds.mean().item()}")
-
             # tensor of shape [patches, 1, 128, 128]
             preds = preds.cpu().detach().squeeze(1)
 
+            # normalize patch predictions
             def normalize(patch):
                 min_val = patch.min()
                 max_val = patch.max()
@@ -135,21 +129,22 @@ for file_path in TEST_DATA:
             norm_preds = torch.stack([normalize(p) for p in preds])
             
         # reconstruct the patches to the original image size
-        reconstructed = reconstruct_patches(preds, patch_size=32, overlap=0.75)
+        # adjust patch_size and overlap to match thermal_dataset patch extraction settings
+        reconstructed = reconstruct_patches(preds, patch_size=64, overlap=0.75)
 
         pred_img = reconstructed.cpu().numpy()
     
+    # for thresholding
     #pred_img = (pred_img > 0.5).astype(np.uint8) 
 
     # visualize predictions
     plt.figure(figsize=(8, 6))
     plt.imshow(pred_img, cmap='gray', vmin=0, vmax=1)
-    plt.title(f"predicted defect map")
-    plt.colorbar(label="confidence (0=nondefect, 1=defect)")
+    plt.colorbar(label="confidence")
     plt.axis("off")
     plt.tight_layout()
    
-    # save plot
+    # save prediction plot
     file_name = file_path.split('/')[-1].replace('.npy', '.png').replace('_fft', '')
     output_file = f"pred_{file_name}"
     plt.savefig(output_file, dpi=300)
