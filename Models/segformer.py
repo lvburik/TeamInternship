@@ -190,7 +190,7 @@ def main(sim_data_path, exp_data_path):
     model = SegformerForSemanticSegmentation.from_pretrained(model_name, num_labels=2,ignore_mismatched_sizes=True)
     model.decode_head.classifier = nn.Conv2d(
         in_channels=256,
-        out_channels=2,  # number of classes you want
+        out_channels=2,
         kernel_size=1
     )
     model.to(device)
@@ -198,11 +198,6 @@ def main(sim_data_path, exp_data_path):
     # train model
     print("training segformer...")
     model = train_segformer(model, feature_extractor, train_dataloader, num_epochs=50)
-    
-    # for loading existing model
-    """weights_path = "segformer_15ep.pth"
-    state_dict = torch.load(weights_path, map_location="cpu")
-    model.load_state_dict(state_dict)"""
 
     # testing model
     print("testing segformer...")
