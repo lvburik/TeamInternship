@@ -59,7 +59,7 @@ def Plot_Clustering(Video_Directory, Video_ID = 1, n_clusters = 2, threshold = 0
     return labels
 
 def K_means_predict(Video, n_clusters = 2, FFT = True, TSR = None):
-    
+    """clusters data and returns labels"""
     
         
 
