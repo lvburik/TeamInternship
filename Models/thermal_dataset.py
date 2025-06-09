@@ -74,12 +74,6 @@ class ThermalDataset(Dataset):
         mask = np.array(mask).astype(np.float32)
         mask = mask.reshape(480, 640)
         mask = np.where(mask > 0, 1, 0) # binary mask
-        
-        # plot mask
-        """plt.imshow(mask, cmap='gray')
-        plt.colorbar()
-        plt.title('Defect Mask')
-        plt.show()"""
 
         # optional preprocessing steps
         if self.center_data:
@@ -113,8 +107,8 @@ class ThermalDataset(Dataset):
         
         if self.extract_cnn_patches:
             # pass in data.T if extract from fftpca data!
-            data, mask = extract_cnn_patches(data, mask, patch_size=32, 
-                                             overlap=0.5, neg_patch_prob=1, augment=False)
+            data, mask = extract_cnn_patches(data, mask, patch_size=64, 
+                                             overlap=0.75, neg_patch_prob=1, augment=True)
         
         if self.apply_PCA:
             if self.extract_cnn_patches:
