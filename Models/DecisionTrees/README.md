@@ -17,7 +17,6 @@ Path to Data Dir
 
 For experimental data, video and mask file paths should include their plate type (composite or resin) and defect shape to ensure thermal_dataset loads the correct correponding mask.
 
-
 ## decisiontrees.py
 Main script used to train and test the decision tree models. To use this script, pass in an optional simulation data directory path and an experimental data directory path. 
 
