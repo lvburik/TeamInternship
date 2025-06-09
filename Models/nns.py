@@ -1,4 +1,5 @@
 import torch
+import sys
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
@@ -8,9 +9,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 from train_model import *
 
+# use gpu if available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
 
+# double convolutional blocks used for unets
 class doubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
         super(doubleConv, self).__init__()
@@ -23,9 +26,10 @@ class doubleConv(nn.Module):
 
     def forward(self, x):
         return self.double_conv(x)
-    
+
+# smaller unet
 class SmallerUNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=1):
+    def __init__(self, in_channels, out_channels=1):
         super(SmallerUNet, self).__init__()
         self.down1 = doubleConv(in_channels, 32)
         self.down2 = doubleConv(32, 64)
@@ -52,8 +56,9 @@ class SmallerUNet(nn.Module):
 
         return self.final_conv(dec1)
     
+# larger unet
 class UNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=1):
+    def __init__(self, in_channels, out_channels=1):
         super(UNet, self).__init__()
         self.down1 = doubleConv(in_channels, 64)
         self.down2 = doubleConv(64, 128)
@@ -91,6 +96,7 @@ class UNet(nn.Module):
         
         return self.final_conv(dec1)
 
+# cnn
 class Network(torch.nn.Module): 
     def __init__(self, n_in, n_classes=1): 
         super(Network,self).__init__() 
@@ -112,6 +118,7 @@ class Network(torch.nn.Module):
             torch.nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
+        # upsampling to get back to original resolution
         self.upsample1 = torch.nn.ConvTranspose2d(16, 16, kernel_size=3, stride=4, padding=1, output_padding=3)
         self.upsample2 = torch.nn.ConvTranspose2d(16, 16, kernel_size=3, stride=2, padding=1, output_padding=1)
         self.final_conv = torch.nn.Conv2d(16, n_classes, kernel_size=1)
@@ -124,11 +131,9 @@ class Network(torch.nn.Module):
         x = self.upsample2(x)
         x = self.final_conv(x)
 
-        # get output to exact original size
-        #x = F.interpolate(x, size=(480, 640), mode='bilinear', align_corners=False)
-
         return x 
 
+# combined loss used in all nn models
 def combined_loss(preds, targets, pos_weight, alpha=0.7):
     bce_loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     bce = bce_loss_fn(preds, targets)
@@ -136,13 +141,15 @@ def combined_loss(preds, targets, pos_weight, alpha=0.7):
     ssim_val = piq.ssim(preds_prob, targets, data_range=1.0)
     return alpha * bce + (1 - alpha) * (1 - ssim_val)
 
+# train model function
+#   alter modelname and model depending on what you want to train
 def train_model(train_loader, num_epochs=10): 
     modelname = "smallunet_pca_200"
     #model = Network(n_in=10).to(device)
     #model = UNet(in_channels=10).to(device)
     model = SmallerUNet(in_channels=103).to(device)
     
-    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([3.5]).to(device)) 
+    #criterion = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([3.5]).to(device)) 
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
     model.train()
@@ -174,12 +181,16 @@ def train_model(train_loader, num_epochs=10):
 
             # print statistics
             running_loss += loss.item()
+        
         avg_loss = running_loss / len(train_loader)
         losses.append(avg_loss)
         print(f"[{epoch + 1}] epoch loss: {avg_loss:.4f}")
+    
+    # save trained model
     torch.save(model.state_dict(), f"{modelname}.pth")
     print(f"{modelname} saved")
 
+    # visualize training loss for convergence
     plt.figure()
     plt.plot(range(1, num_epochs + 1), losses)
     plt.xlabel("epoch")
@@ -191,7 +202,8 @@ def train_model(train_loader, num_epochs=10):
 
     return model
 
-def test_model(model, test_loader, threshold=0.4):
+# test model function
+def test_model(model, test_loader, threshold=0.5):
     model.eval()
     y_true = []
     y_pred = []
@@ -217,7 +229,7 @@ def test_model(model, test_loader, threshold=0.4):
 
             y_true.append(y_batch_true)
             y_pred.append(y_batch_pred)
-            break
+
     y_true = np.concatenate(y_true)
     y_pred = np.concatenate(y_pred)
     evaluate(y_true, y_pred)
@@ -225,13 +237,16 @@ def test_model(model, test_loader, threshold=0.4):
 def main(sim_data_path, exp_data_path):
 
     # initialize training dataset
+    #   if using simulation data, mask_dir = mask_dir and sim = True
     train_dataset = ThermalDataset(
         file_paths=TRAIN_DATA,
         data_dir=exp_data_path, 
         mask_map=MASK_MAP,
+        mask_dir=mask_dir,
         apply_PCA=False,
         extract_patches=False,
         extract_cnn_patches=True,
+        sim=False
     )
     
     # initialize testing dataset
@@ -239,9 +254,11 @@ def main(sim_data_path, exp_data_path):
         file_paths=TEST_DATA,
         data_dir=exp_data_path,
         mask_map=MASK_MAP,
+        mask_dir=mask_dir,
         apply_PCA=False,
         extract_patches=False,
         extract_cnn_patches=True,
+        sim=False
     )
     
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
@@ -259,7 +276,9 @@ def main(sim_data_path, exp_data_path):
     test_model(model, test_dataloader, threshold=0.35)
 
 if __name__ == "__main__":
-    # read file path for data
+    # read file paths for data
+    #   first argument should lead to simulation data directory
+    #   second should lead to experimental data directory
     sim_data_path = sys.argv[1]
     exp_data_path = sys.argv[2]
     main(sim_data_path, exp_data_path)
