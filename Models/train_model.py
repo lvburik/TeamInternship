@@ -42,7 +42,7 @@ TEST_DATA = [
     "fft data/Resin/triangular_2_lamps_left_off_fft.npy"]
 
 
-# for loading pca data
+# for loading pca data (comment out if loading pure fft data)
 TRAIN_DATA = [f.replace('fft data', 'fftpca data') for f in TRAIN_DATA]
 TEST_DATA = [f.replace('fft data', 'fftpca data') for f in TEST_DATA]
 TRAIN_DATA = [f.replace('_fft', '_fftpca') for f in TRAIN_DATA]
@@ -100,9 +100,10 @@ TEST_SIM_DATA = [
     "raw data/sim1_circular_heat10_17.npy",
 ]
 
-
+# define mask directory within Simulation Data directory
 mask_dir = "masks/"
 
+# evaluation function used across models
 def evaluate(y_true, y_pred):
     # calculate evaluation metrics
     acc = accuracy_score(y_true, y_pred)
