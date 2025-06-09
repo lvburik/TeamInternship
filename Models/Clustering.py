@@ -100,7 +100,7 @@ def Extract_features(Video):
 
 # %%
 
-Video_Directory = 'C:/Users/20202555/OneDrive - TU Eindhoven/Documents/M AI&ES - Year 1/Team-internship/Experimental_Data/Test'
+Video_Directory = '/Team-internship/Experimental_Data/Test'
     
    
     
