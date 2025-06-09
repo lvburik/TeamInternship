@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 logging.set_verbosity_error()
 
 # path to saved trained model
-model_path = "Models/saved models/segformer_50ep.pth"
+model_path = "SegFormer/segformer_50ep.pth"
 
 # load segformer model
 def load_model(model_path):
