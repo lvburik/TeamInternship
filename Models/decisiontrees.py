@@ -11,6 +11,82 @@ from train_model import *
 
 train_model = 'rf' # choose 'rf' or 'xgb'
 
+# train random forest model
+def train_rf_model(train_loader):
+    X_train, y_train = [], []
+    for fft_data, mask in train_loader:
+
+        # format data
+        fft_data = fft_data.squeeze(0).numpy()
+        mask = mask.squeeze(0).numpy()
+        
+        # turn into (num_pixels, num_freqs)
+        fft_data = fft_data.T
+
+        # turn into (num_pixels, )
+        mask = mask.flatten()
+
+        X_train.append(fft_data)
+        y_train.append(mask)
+        print(f"fft_data shape: {fft_data.shape}")
+
+    # format data for rf
+    X_train = np.vstack(X_train)
+    y_train = np.hstack(y_train)
+    X_train = X_train.astype(np.float32)
+    y_train = y_train.astype(np.float32)
+
+    print(f"X_train shape: {X_train.shape}")
+    print(f"y_train shape: {y_train.shape}")
+
+    # if resampling instead of patching
+    # X_train, y_train = resample(X_train, y_train, n_samples=300000, random_state=42)
+
+    rf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+    rf.fit(X_train, y_train)
+
+    # save model
+    joblib.dump(rf, "rf_patch.joblib")
+    print("rf model saved")
+
+    return rf
+
+# test random forest model
+def test_rf_model(rf, test_loader):
+    X_test, y_test = [], []
+    for fft_data, mask in test_loader:
+        # format data
+        fft_data = fft_data.squeeze(0).numpy()
+        mask = mask.squeeze(0).numpy()
+
+        # turn into (num_pixels, num_freqs)
+        fft_data = fft_data.T
+
+        # turn into (num_pixels, )
+        mask = mask.flatten()
+
+        X_test.append(fft_data)
+        y_test.append(mask)
+
+    # format data for rf
+    X_test = np.vstack(X_test)
+    y_test = np.hstack(y_test)
+
+    # if resampling instead of patching
+    # X_test, y_test = resample(X_test, y_test, n_samples=100000, random_state=42)
+
+    print(f"X_test shape: {X_test.shape}")
+    print(f"y_test shape: {y_test.shape}")
+
+    # obtain predictions
+    preds = rf.predict(X_test)
+    
+    # evaluate rf model
+    evaluate(y_test, preds)
+
+    return preds
+
+# train xgb model (not included in final report)
 def train_xgb_model(train_loader):
     X_train, y_train = [], []
     for fft_data, mask in train_loader:
@@ -61,6 +137,7 @@ def train_xgb_model(train_loader):
 
     return model
 
+# test xgb model (not included in final report)
 def test_xgb_model(model, test_loader):
     X_test, y_test = [], []
     for fft_data, mask in test_loader:
@@ -93,79 +170,6 @@ def test_xgb_model(model, test_loader):
 
     return preds
 
-def train_rf_model(train_loader):
-    # train random forst model
-    X_train, y_train = [], []
-    for fft_data, mask in train_loader:
-
-        # format data
-        fft_data = fft_data.squeeze(0).numpy()
-        mask = mask.squeeze(0).numpy()
-        
-        # turn into (num_pixels, num_freqs)
-        fft_data = fft_data.T
-
-        # turn into (num_pixels, )
-        mask = mask.flatten()
-
-        X_train.append(fft_data)
-        y_train.append(mask)
-        print(f"fft_data shape: {fft_data.shape}")
-
-    # format data for rf
-    X_train = np.vstack(X_train)
-    y_train = np.hstack(y_train)
-    X_train = X_train.astype(np.float32)
-    y_train = y_train.astype(np.float32)
-
-    print(f"X_train shape: {X_train.shape}")
-    print(f"y_train shape: {y_train.shape}")
-
-    #x, y = resample(X_train, y_train, n_samples=100000, random_state=42)
-
-    rf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
-    rf.fit(X_train, y_train)
-
-    # save model
-    joblib.dump(rf, "rf_patch.joblib")
-    print("rf model saved")
-
-    return rf
-
-def test_rf_model(rf, test_loader):
-    # test random forest model
-    X_test, y_test = [], []
-    for fft_data, mask in test_loader:
-        # format data
-        fft_data = fft_data.squeeze(0).numpy()
-        mask = mask.squeeze(0).numpy()
-
-        # turn into (num_pixels, num_freqs)
-        fft_data = fft_data.T
-
-        # turn into (num_pixels, )
-        mask = mask.flatten()
-
-        X_test.append(fft_data)
-        y_test.append(mask)
-
-    # format data for rf
-    X_test = np.vstack(X_test)
-    y_test = np.hstack(y_test)
-
-    # x, y = resample(X_test, y_test, n_samples=80000, random_state=42)
-
-    print(f"X_test shape: {X_test.shape}")
-    print(f"y_test shape: {y_test.shape}")
-
-    # obtain predictions
-    preds = rf.predict(X_test)
-    
-    # evaluate rf model
-    evaluate(y_test, preds)
-
-    return preds
-
 
 def main(sim_data_path, exp_data_path):
     
@@ -174,10 +178,9 @@ def main(sim_data_path, exp_data_path):
         file_paths=TRAIN_DATA,
         data_dir=exp_data_path, 
         mask_map=MASK_MAP,
-        apply_PCA=False,
-        extract_patches=True,
-        extract_cnn_patches=False,
-        cutoff_frequency=1
+        mask_dir=mask_dir,
+        extract_patches=True,   # change if resampling pixels
+        sim=False               # change if using sim data
     )
     
     # initialize testing dataset
@@ -185,10 +188,9 @@ def main(sim_data_path, exp_data_path):
         file_paths=TEST_DATA,
         data_dir=exp_data_path,
         mask_map=MASK_MAP,
-        apply_PCA=False,
-        extract_patches=True,
-        extract_cnn_patches=False,
-        cutoff_frequency=1
+        mask_dir=mask_dir,
+        extract_patches=True,   # change if resampling pixels
+        sim=False               # change if using sim data
     )
     
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=True)
@@ -213,6 +215,8 @@ def main(sim_data_path, exp_data_path):
 
 if __name__ == "__main__":
     # read file path for data
+    #   first argument should lead to simulation data directory
+    #   second should lead to experimental data directory
     sim_data_path = sys.argv[1]
     exp_data_path = sys.argv[2]
     main(sim_data_path, exp_data_path)
